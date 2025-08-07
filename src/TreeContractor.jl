@@ -1,5 +1,6 @@
 module TreeContractor
 
-# Write your package code here.
+using OMEinsum
 
+include("tree.jl")
 end
