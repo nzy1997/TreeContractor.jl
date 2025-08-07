@@ -1,0 +1,13 @@
+name = "TreeContractor"
+uuid = "9c73e9a1-f3ff-4299-8ff4-9ebd1df36108"
+authors = ["nzy1997"]
+version = "1.0.0-DEV"
+
+[compat]
+julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
