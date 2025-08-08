@@ -1,6 +1,10 @@
 module TreeContractor
 
 using OMEinsum
+using LinearAlgebra
 
-include("tree.jl")
+
+export contract_with_mps
+
+include("mps.jl")
 end
