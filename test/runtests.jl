@@ -2,27 +2,8 @@ using TreeContractor
 using Test
 using OMEinsum
 using Random
+using LinearAlgebra
 
-
-code = ein"abc,cde,egh,bfg->"
-optcode = optimize_code(code, uniformsize(code, 2), OMEinsum.PathSA())
-
-Random.seed!(1234)
-t1 = rand(2,2,2)
-t2 = rand(2,2,2)
-t3 = rand(2,2,2)
-t4 = rand(2,2,2)
-
-tensors = [t1, t2, t3, t4]
-optcode(t1, t2, t3, t4)
-# 11.468356722794542
-
-mps, apply_vec, tensor_labels = TreeContractor.code2mps(optcode,uniformsize(code, 2))
-
-mps, apply_vec, tensor_labels = TreeContractor.code2mps(optcode,uniformsize(code, 2)); TreeContractor.apply_tensors!(mps, apply_vec, tensors, tensor_labels)
-
-TreeContractor.contract_mps(mps.tensors)
-contract_with_mps(optcode, tensors, uniformsize(code, 2))
 
 @testset "tensor2mps and contract_mps" begin
     ashape = (6, 3, 4, 5)
@@ -44,6 +25,22 @@ end
     @test a[:,1,:] == I(2)
     @test a[:,2,:] == I(2)
     @test a[:,3,:] == I(2)
+end
+
+@testset "apply_rank_3_tensor" begin
+    Random.seed!(1234)
+    t1 = rand(2,2,2)
+    t2 = rand(2,2,2)
+    t3 = rand(2,2,2)
+    t4 = rand(2,2,2)
+
+    m = ein"bfc,efg,cad,gah->bedh"(t1,t2,t3,t4)
+    m = reshape(m, 2*2,2*2)
+
+    m1 = TreeContractor.apply_rank_3_tensor(t1,t2)
+    m2 = TreeContractor.apply_rank_3_tensor(t3,t4)
+    mp = ein"bfc,cad-> bd"(m1,m2)
+    @test m ≈ mp atol = 1e-10
 end
 
 @testset "contract_with_mps" begin
@@ -71,6 +68,28 @@ end
 
     tensors = [t1, t2, t3]
     right_answer = optcode(tensors...)[]
+
+    @test contract_with_mps(optcode, tensors, uniformsize(code, 2)) ≈ right_answer atol = 1e-10
+end
+
+@testset "contract_with_mps" begin
+    code = ein"abc,cde,egh,bfg->"
+    optcode = optimize_code(code, uniformsize(code, 2), OMEinsum.PathSA())
+
+    Random.seed!(1234)
+    t1 = rand(2,2,2)
+    t2 = rand(2,2,2)
+    t3 = rand(2,2,2)
+    t4 = rand(2,2,2)
+    
+    tensors = [t1, t2, t3, t4]
+    right_answer = optcode(tensors...)[]
+    # 11.468356722794542
+    @show right_answer
+
+    mps, apply_vec, tensor_labels = TreeContractor.code2mps(optcode,uniformsize(code, 2)); TreeContractor.apply_tensors!(mps, apply_vec, tensors, tensor_labels)
+
+    @show TreeContractor.contract_mps(mps.tensors)
 
     @test contract_with_mps(optcode, tensors, uniformsize(code, 2)) ≈ right_answer atol = 1e-10
 end
