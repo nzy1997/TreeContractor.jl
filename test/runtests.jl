@@ -59,21 +59,22 @@ end
 
 @testset "contract_with_mps" begin
     code = ein"ac,bd,ab->"
-    optcode = optimize_code(code, uniformsize(code, 2), OMEinsum.PathSA())
+    size_dict = Dict('a' => 2, 'b' => 3, 'c' => 4, 'd' => 5)
+    optcode = optimize_code(code, size_dict, OMEinsum.PathSA())
 
     Random.seed!(1234)
-    t1 = rand(2,2)
-    t2 = rand(2,2)
-    t3 = rand(2,2)
+    t1 = rand(2,4)
+    t2 = rand(3,5)
+    t3 = rand(2,3)
 
     tensors = [t1, t2, t3]
     right_answer = optcode(tensors...)[]
 
-    @test contract_with_mps(optcode, tensors, uniformsize(code, 2)) ≈ right_answer atol = 1e-10
+    @test contract_with_mps(optcode, tensors, size_dict) ≈ right_answer atol = 1e-10
 end
 
 @testset "contract_with_mps" begin
-    code = ein"abc,cde,egh,bfg->"
+    code = ein"abc,cde,egh,fbg->"
     optcode = optimize_code(code, uniformsize(code, 2), OMEinsum.PathSA())
 
     Random.seed!(1234)
@@ -93,3 +94,4 @@ end
 
     @test contract_with_mps(optcode, tensors, uniformsize(code, 2)) ≈ right_answer atol = 1e-10
 end
+

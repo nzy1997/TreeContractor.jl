@@ -26,36 +26,33 @@ function code2mps(code::DynamicNestedEinsum{LT}, size_dict::Dict{LT, Int}) where
 end
 
 function _code2mps!(code::DynamicNestedEinsum{LT}, labels::Vector{LT}, apply_vec::Vector{Int}, tensor_labels::Vector{Vector{LT}}) where LT
-    if !isdefined(code,:eins)
-        error("code is a empty code")
-        push!(apply_vec, code.tensorindex)
-        return nothing
-    end
+    @assert !OMEinsum.isleaf(code) "code is a empty code"
     input_inds = reduce(∪,code.eins.ixs)
     out_inds = code.eins.iy
+
+    if !OMEinsum.isleaf(code.args[1])
+        _code2mps!(code.args[1], labels, apply_vec, tensor_labels)
+    else
+        push!(apply_vec, code.args[1].tensorindex)
+        push!(tensor_labels, code.eins.ixs[1])
+    end
 
     for label in input_inds
         if label ∉ out_inds
             push!(labels, label)
         end
     end
+    @assert OMEinsum.isleaf(code.args[2]) "code.args[2] is not a leaf"
     push!(apply_vec, code.args[2].tensorindex)
     push!(tensor_labels, code.eins.ixs[2])
-    if isdefined(code.args[1],:eins)
-        _code2mps!(code.args[1], labels, apply_vec, tensor_labels)
-        
-    else
-        push!(apply_vec, code.args[1].tensorindex)
-        push!(tensor_labels, code.eins.ixs[1])
-    end
 
     return nothing
 end
 
 function apply_tensors!(mps::LabeledMPS, apply_vec::Vector{Int}, tensors::Vector{<:AbstractArray{T}}, tensor_labels::Vector{Vector{LT}}) where {T<:Number, LT}
-    for i in length(apply_vec):-1:1
-        apply_tensor!(mps, tensors[i], tensor_labels[i])
-        @show  mps.tensors .|> size
+    for (i,label) in zip(apply_vec, tensor_labels)
+        apply_tensor!(mps, tensors[i], label)
+        # @show  mps.tensors .|> size
         # return
     end
     return mps
@@ -63,9 +60,11 @@ end
 
 function apply_tensor!(mps::LabeledMPS, tensor::AbstractArray{T}, tensor_label::Vector{LT}) where {T<:Number, LT}
     @assert length(tensor_label) == length(size(tensor)) "tensor_label and the dimension of tensor are not compatible"
+    for (i,l) in enumerate(tensor_label)
+        @assert size(mps.tensors[mps.label_to_index[l]],2) == size(tensor,i) "tensor_label and the dimension of tensor are not compatible at index $i"
+    end
     
     sorted_tensor_label = sort(1:length(tensor_label); by= x -> mps.label_to_index[tensor_label[x]])
-
     mps_vec, bd_vec = tensor2mps(permutedims(tensor,sorted_tensor_label))
    
     
@@ -79,9 +78,9 @@ function apply_tensor!(mps::LabeledMPS, tensor::AbstractArray{T}, tensor_label::
         end
         mps.tensors[i] = apply_rank_3_tensor(mps.tensors[i], merge_tensor)
 
-        # if i > 1
-            # @assert size(mps.tensors[i],1) == size(mps.tensors[i-1],3)
-        # end
+        if i > 1
+            @assert size(mps.tensors[i],1) == size(mps.tensors[i-1],3)
+        end
     end
      return mps
 end
@@ -90,7 +89,7 @@ end
 #   d| e/ f|     =>   d|     f| g/
 # -a-o--b--o-c-     -a-o--be--o-c-
 function apply_rank_3_tensor(tensor::AbstractArray{T,3}, merge_tensor::AbstractArray{T,3}) where T
-    merge_code = ein"bfc,efg->befcg"
+    merge_code = ein"bfc,efg->befcg" # TODO: remove f
     m = merge_code(tensor, merge_tensor)
     return reshape(m, size(m,1)*size(m,2), size(m,3), size(m,4)*size(m,5))
 end
