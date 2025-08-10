@@ -58,7 +58,7 @@ end
 end
 
 @testset "contract_with_mps" begin
-    code = ein"ac,bd,ab->"
+    code = ein"ac,bd,ab,cd->"
     size_dict = Dict('a' => 2, 'b' => 3, 'c' => 4, 'd' => 5)
     optcode = optimize_code(code, size_dict, OMEinsum.PathSA())
 
@@ -66,8 +66,9 @@ end
     t1 = rand(2,4)
     t2 = rand(3,5)
     t3 = rand(2,3)
+    t4 = rand(4,5)
 
-    tensors = [t1, t2, t3]
+    tensors = [t1, t2, t3, t4]
     right_answer = optcode(tensors...)[]
 
     @test contract_with_mps(optcode, tensors, size_dict) ≈ right_answer atol = 1e-10
@@ -85,13 +86,105 @@ end
     
     tensors = [t1, t2, t3, t4]
     right_answer = optcode(tensors...)[]
-    # 11.468356722794542
     @show right_answer
 
-    mps, apply_vec, tensor_labels = TreeContractor.code2mps(optcode,uniformsize(code, 2)); TreeContractor.apply_tensors!(mps, apply_vec, tensors, tensor_labels)
+    mps, apply_vec, tensor_labels, vanish_labels_vec = TreeContractor.code2mps(optcode,uniformsize(code, 2)); mps = TreeContractor.apply_tensors!(mps, apply_vec, tensors, tensor_labels, vanish_labels_vec)
 
-    @show TreeContractor.contract_mps(mps.tensors)
+    @show mps.tensors
 
     @test contract_with_mps(optcode, tensors, uniformsize(code, 2)) ≈ right_answer atol = 1e-10
 end
 
+
+@testset "canonicalize" begin
+    Random.seed!(42)
+    N, center, χ = 10, 5, 20
+    T = ComplexF64
+    mps = TreeContractor.random_mps(T, N; maxdim=χ)
+    norm_init = norm(mps)
+
+    TreeContractor.canonicalize!(mps, center)
+
+    for i in 1:(center - 1)
+        U = reshape(mps.tensors[i], size(mps.tensors[i])[1] * size(mps.tensors[i])[2], :)
+        @test U' * U ≈ LinearAlgebra.I
+    end
+    for i in (center + 1):TreeContractor.nsite(mps)
+        V = reshape(mps.tensors[i], :, size(mps.tensors[i])[2] * size(mps.tensors[i])[3])
+        @test V * V' ≈ LinearAlgebra.I
+    end
+
+    @test TreeContractor.orthocenter(mps) == center
+    @test norm(mps) ≈ norm_init
+    @test TreeContractor.is_canonicalized(mps)
+    @test TreeContractor.check_canonical(mps)
+end
+
+
+@testset "compression by local SVD" begin
+    N = 6
+    Random.seed!(42)
+    χ = 8
+    # Create MPS with high bond dimensions
+    mps = TreeContractor.LabeledMPS([
+        randn(ComplexF64, 1, 2, χ),
+        [randn(ComplexF64, χ, 2, χ) for _ in 2:(N-1)]...,
+        randn(ComplexF64, χ, 2, 1)
+    ], [i for i in 1:N])
+    
+    original_vec = vec(mps)
+    original_elements = TreeContractor.num_of_elements(mps)
+    
+    # Test compression
+    TreeContractor.compress!(TreeContractor.LocalCompress(), mps; niters=2, maxdim=8)
+    compressed_elements = TreeContractor.num_of_elements(mps)
+    
+    @test compressed_elements < original_elements
+    @test TreeContractor.check_canonical(mps)
+    @test vec(mps) ≈ original_vec atol=1e-4
+end
+
+@testset "compression by global SVD" begin
+    N = 6
+    Random.seed!(42)
+    χ = 8
+    # Create MPS with high bond dimensions
+    mps = TreeContractor.LabeledMPS([
+        randn(ComplexF64, 1, 2, χ),
+        [randn(ComplexF64, χ, 2, χ) for _ in 2:(N-1)]...,
+        randn(ComplexF64, χ, 2, 1)
+    ], [i for i in 1:N])
+
+    TreeContractor.normalize!(mps)
+    
+    original_vec = vec(mps)
+    original_elements = TreeContractor.num_of_elements(mps)
+    
+    # Test compression
+    TreeContractor.compress!(TreeContractor.FullCompress(), mps; maxdim=8)
+    compressed_elements = TreeContractor.num_of_elements(mps)
+    
+    @test compressed_elements < original_elements
+    @test TreeContractor.check_canonical(mps)
+    @test vec(mps) ≈ original_vec atol=1e-14
+end
+
+@testset "contract_with_mps" begin
+    code = ein"abc,cde,egh,fbg,yczd,ybzc->"
+    bd = 3
+    optcode = optimize_code(code, uniformsize(code, bd), OMEinsum.PathSA())
+
+    Random.seed!(1234)
+    t1 = rand(bd,bd,bd)
+    t2 = rand(bd,bd,bd)
+    t3 = rand(bd,bd,bd)
+    t4 = rand(bd,bd,bd)
+    t5 = rand(bd,bd,bd,bd)
+    t6 = rand(bd,bd,bd,bd)
+
+    tensors = [t1, t2, t3, t4, t5, t6]
+    right_answer = optcode(tensors...)[]
+    @show right_answer
+
+    @test contract_with_mps(optcode, tensors, uniformsize(code, bd); maxdim = 10) ≈ right_answer atol = 1e-10
+end

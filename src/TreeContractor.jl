@@ -7,4 +7,5 @@ using LinearAlgebra
 export contract_with_mps
 
 include("mps.jl")
+include("compress.jl")
 end
