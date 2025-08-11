@@ -192,7 +192,7 @@ end
 
 @testset "tensor with output label" begin
     code = ein"abc,cde,egh,fbg->f"
-    bd = 10
+    bd = 5
     optcode = optimize_code(code, uniformsize(code, bd), OMEinsum.PathSA())
 
     Random.seed!(1234)
