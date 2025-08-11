@@ -18,8 +18,8 @@ nsite(mps::LabeledMPS) = length(mps.labels)
 num_of_elements(mps::LabeledMPS) = sum(length, mps.tensors)
 
 function code2mps(code::DynamicNestedEinsum{LT}, size_dict::Dict{LT, Int}) where LT
-    @assert isempty(code.eins.iy) "Output labels must be empty"
-    labels = Vector{LT}()
+    # labels = Vector{LT}()
+    labels = copy(code.eins.iy)
     apply_vec = Vector{Int}()
     tensor_labels = Vector{Vector{LT}}()
     vanish_labels_vec = Vector{Vector{LT}}()
@@ -56,11 +56,11 @@ end
 function apply_tensors!(mps::LabeledMPS, apply_vec::Vector{Int}, tensors::Vector{<:AbstractArray{T}}, tensor_labels::Vector{Vector{LT}}, vanish_labels_vec::Vector{Vector{LT}}; maxdim = Inf) where {T<:Number, LT}
     for (i,label, vanish_labels) in zip(apply_vec, tensor_labels, vanish_labels_vec)
         mps = apply_tensor!(mps, tensors[i], label, vanish_labels)
-        @info  mps.tensors .|> size
+        # @info  mps.tensors .|> size
         if maximum(size.(mps.tensors,1)) > maxdim
             compress!(FullCompress(), mps; maxdim)
-            @info "compress"
-            @info  mps.tensors .|> size
+            # @info "compress"
+            # @info  mps.tensors .|> size
         end
     end
     return mps
@@ -103,10 +103,11 @@ function apply_tensor!(mps::LabeledMPS, tensor::AbstractArray{T}, tensor_label::
             if i < nsite_mps
                 mps.tensors[i+1] = ein"ab,bcd->acd"(mps.tensors[i][:,:,1], mps.tensors[i+1])
             else
-                most_right_tensor = findfirst(x -> x ∈ vanish_labels, nsite_mps:-1:1)
+                most_right_tensor = findfirst(x -> mps.labels[x] ∉ vanish_labels, nsite_mps:-1:1)
                 if isnothing(most_right_tensor)
                     return LabeledMPS([mps.tensors[end]], [-1])
                 else
+                    most_right_tensor = nsite_mps - most_right_tensor + 1
                     mps.tensors[most_right_tensor] = ein"abc,cd->abd"(mps.tensors[most_right_tensor], mps.tensors[i][:,:,1])
                 end
             end
@@ -184,7 +185,7 @@ contract_mps(mps::LabeledMPS) = contract_mps(mps.tensors)
 function contract_with_mps(optcode::DynamicNestedEinsum{LT}, tensors::Vector{<:AbstractArray{T}}, size_dict::Dict{LT, Int};maxdim = Inf) where {T<:Number, LT}
     mps, apply_vec, tensor_labels, vanish_labels_vec = code2mps(optcode, size_dict)
     mps = apply_tensors!(mps, apply_vec, tensors, tensor_labels, vanish_labels_vec; maxdim)
-    return mps.tensors[1][]
+    return mps.tensors
 end
 
 function random_mps(::Type{T}, N::Int; maxdim::Int, d::Int=2, amplitude::Real=1.0) where T

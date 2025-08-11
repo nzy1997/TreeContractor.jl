@@ -1,6 +1,6 @@
 using TreeContractor
 using Test
-using OMEinsum
+using TreeContractor.OMEinsum
 using Random
 using LinearAlgebra
 
@@ -54,7 +54,7 @@ end
     tensors = [t1, t2]
     right_answer = optcode(t1, t2)[]
 
-    @test contract_with_mps(optcode, tensors, uniformsize(code, 2)) ≈ right_answer atol = 1e-10
+    @test contract_with_mps(optcode, tensors, uniformsize(code, 2))[1][] ≈ right_answer atol = 1e-10
 end
 
 @testset "contract_with_mps" begin
@@ -71,7 +71,7 @@ end
     tensors = [t1, t2, t3, t4]
     right_answer = optcode(tensors...)[]
 
-    @test contract_with_mps(optcode, tensors, size_dict) ≈ right_answer atol = 1e-10
+    @test contract_with_mps(optcode, tensors, size_dict)[1][] ≈ right_answer atol = 1e-10
 end
 
 @testset "contract_with_mps" begin
@@ -92,7 +92,7 @@ end
 
     @show mps.tensors
 
-    @test contract_with_mps(optcode, tensors, uniformsize(code, 2)) ≈ right_answer atol = 1e-10
+    @test contract_with_mps(optcode, tensors, uniformsize(code, 2))[1][] ≈ right_answer atol = 1e-10
 end
 
 
@@ -186,5 +186,24 @@ end
     right_answer = optcode(tensors...)[]
     @show right_answer
 
-    @test contract_with_mps(optcode, tensors, uniformsize(code, bd); maxdim = 10) ≈ right_answer atol = 1e-10
+    @test contract_with_mps(optcode, tensors, uniformsize(code, bd); maxdim = 10)[1][] ≈ right_answer atol = 1e-10
+end
+
+
+@testset "tensor with output label" begin
+    code = ein"abc,cde,egh,fbg->f"
+    bd = 10
+    optcode = optimize_code(code, uniformsize(code, bd), OMEinsum.PathSA())
+
+    Random.seed!(1234)
+    t1 = rand(bd,bd,bd)
+    t2 = rand(bd,bd,bd)
+    t3 = rand(bd,bd,bd)
+    t4 = rand(bd,bd,bd)
+    
+    tensors = [t1, t2, t3, t4]
+    right_answer = optcode(tensors...)
+    @show right_answer
+
+    @test contract_with_mps(optcode, tensors, uniformsize(code, bd); maxdim = 10)[1][1,:,1] ≈ right_answer atol = 1e-10
 end
