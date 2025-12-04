@@ -1,3 +1,9 @@
 [deps]
+Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
+OMEinsum = "ebe7aa44-baf0-506c-a96f-8464559b3922"
+ProblemReductions = "899c297d-f7d2-4ebf-8815-a35996def416"
 TensorQEC = "0500ac79-7fb5-4262-aaea-37bb1845d1ef"
 TreeContractor = "9c73e9a1-f3ff-4299-8ff4-9ebd1df36108"
+
+[sources]
+TreeContractor = {path = ".."}
