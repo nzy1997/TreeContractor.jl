@@ -225,188 +225,25 @@ The _rank width_ is a structural parameter that characterizes the difficulty of 
   $
 ]
 
-#theorem([Dynamic programming complexity])[
-  The \#SAT problem for a formula with rank width $r$ can be solved in time $O(n dot 2^(3r))$ using dynamic programming along a rank decomposition of width $r$.
-]
-
 The rank width provides a finer measure of formula complexity compared to tree width. For example, formulas with dense clause structure can have bounded rank width but unbounded tree width.
 
-==== Example: XOR constraints - Rank width vs Tree width
+==== Example: Parity constraint (XOR)
 
-Consider a formula encoding XOR (parity) constraints. We express "$x_1 xor x_2 xor ... xor x_k = 0$" (even parity) in CNF, which requires exponentially many clauses but has nice algebraic structure.
+Consider the constraint $x_1 xor x_2 xor x_3 = 0$ (even parity). In CNF, this requires 4 clauses, each connecting all 3 variables (e.g., $x_1 or x_2 or overline(x)_3$).
 
-For simplicity, consider a system of $n$ variables with $m$ XOR constraints, where each constraint involves $k$ variables. This can be represented as:
-$
-  phi = and.big_(i=1)^m "XOR-CNF"(S_i)
-$
-where $S_i subset {x_1, ..., x_n}$ with $|S_i| = k$.
+*Tree Width (Structural Complexity):*
+The incidence graph is a complete bipartite graph $K_(3,4)$ because every variable connects to every clause.
+- *Structure:* A dense web of connections.
+- *Implication:* Any tree decomposition must put all 3 variables in a single bag.
+- *Tree Width:* $>= 2$.
 
-*Example with $n=4$ variables, one global XOR constraint:*
-$
-  x_1 xor x_2 xor x_3 xor x_4 = 0 quad "(even parity)"
-$
+*Rank Width (Algebraic Complexity):*
+We analyze the information flow across a cut over $bb(F)_2$. Consider the partition $A={x_1}$ and $B={x_2, x_3, "clauses"}$.
+- *Effect of $A$:* The value of $x_1$ only sends 1 bit of information to the rest of the system: "what is my contribution to the parity?".
+- *Cut Matrix:* In the incidence matrix, the row for $x_1$ represents its connections to clauses. Despite connecting to all 4 clauses, this row vector lives in a 1-dimensional subspace relative to the rest of the graph's structure (due to linear dependencies over $bb(F)_2$).
+- *Rank Width:* 1.
 
-This is encoded in CNF as "an even number of variables must be true":
-$
-  phi = (overline(x)_1 or overline(x)_2 or overline(x)_3 or overline(x)_4) and 
-        (x_1 or x_2 or overline(x)_3 or overline(x)_4) and ... quad "(8 clauses total)"
-$
-
-*Tree width analysis:* The incidence graph for XOR constraints is highly connected. Each of the 8 clauses connects to all 4 variables, creating a dense bipartite structure. The tree width is $Omega(k) = Omega(4) = 3$ or higher.
-
-*Rank width analysis:* Consider the bipartition $A = {x_1, x_2}$ and $B = {x_3, x_4} union "clauses"$. 
-
-The key insight: Over $bb(F)_2$, XOR constraints have *linear structure*. The effect of assigning $(x_1, x_2)$ on the clauses is determined by the *parity* $x_1 xor x_2$ alone!
-
-The cut matrix $M_(A, B)$ has rows for ${x_1, x_2}$ and columns for ${x_3, x_4}$ and the clauses. Due to the XOR structure:
-- All information about $(x_1, x_2)$ visible from $B$ is captured by their parity
-- The rank is at most 2 (actually can be 1 for symmetric XOR formulas)
-
-*General case:* For a system of $m$ linear constraints over $bb(F)_2$ on $n$ variables:
-- Tree width: Can be $Theta(n)$ for dense constraint systems
-- Rank width: At most $min(m, n)$, often much smaller due to linear dependencies
-
-#figure(canvas(length: 1.5cm, {
-  import draw: *
-  
-  // XOR constraint structure
-  content((0, 2), text(11pt)[*XOR: $x_1 xor x_2 xor x_3 xor x_4 = 0$*])
-  
-  let var_y = 0.8
-  let clause_y = 0
-  
-  // Variables
-  for (i, x) in ((1, -2), (2, -0.7), (3, 0.7), (4, 2)) {
-    circle((x, var_y), radius: 0.15, fill: blue.lighten(70%), name: "x"+str(i))
-    content((x, var_y), text(8pt)[$x_#i$])
-  }
-  
-  // Show 4 representative clauses (out of 8)
-  for (i, x) in ((1, -1.8), (2, -0.6), (3, 0.6), (4, 1.8)) {
-    circle((x, clause_y), radius: 0.12, fill: red.lighten(70%), name: "c"+str(i))
-  }
-  content((0, -0.5), text(7pt)[... 8 clauses ...])
-  
-  // Dense connections
-  for i in range(1, 5) {
-    for j in range(1, 5) {
-      line("x"+str(i), "c"+str(j), stroke: (thickness: 0.3pt, paint: gray))
-    }
-  }
-  
-  // Cut
-  line((0, -0.8), (0, 1.3), stroke: (thickness: 1.5pt, dash: "dashed", paint: red), name: "cut")
-  content((0.3, 1.5), text(9pt, red)[cut])
-  
-  // Labels
-  content((-1.3, 1.5), text(10pt, blue)[Side $A$])
-  content((1.3, 1.5), text(10pt, green)[Side $B$])
-  
-  // Boundary info
-  content((-1.3, -1.2), text(8pt)[4 assignments])
-  content((-1.3, -1.5), text(8pt)[to $(x_1, x_2)$])
-  content((0.5, -1.2), text(8pt, purple)[But only 2])
-  content((0.5, -1.5), text(8pt, purple)[parities!])
-  content((0.5, -1.8), text(7pt, purple)[$x_1 xor x_2 in {0,1}$])
-}),
-caption: [XOR constraint creates dense incidence graph (high tree width) but has low rank width because assignments are equivalent under parity over $bb(F)_2$.]
-)
-
-*Key insight:* For formulas encoding *linear algebraic structure* (systems of linear equations over $bb(F)_2$), rank width can be exponentially better than tree width:
-- Tree width: $O(n)$ for dense systems
-- Rank width: $O("rank of constraint matrix")$, often constant or logarithmic
-
-Examples include error-correcting codes, cryptographic constraints, and parity games—all have natural $bb(F)_2$ structure that rank width captures perfectly.
-
-==== Explicit computation: Rank width of a simple XOR constraint
-
-Let's compute the rank width step-by-step for a minimal example: 3 variables with a single XOR constraint.
-
-*Setup:* The constraint $x_1 xor x_2 xor x_3 = 0$ means "even number of variables are true".
-
-$
-  c_1 &: overline(x)_1 or overline(x)_2 or overline(x)_3 quad &"(0 true)"\
-  c_2 &: x_1 or x_2 or overline(x)_3 quad &"(2 true: {x"_1",x"_2"})"\
-  c_3 &: x_1 or overline(x)_2 or x_3 quad &"(2 true: {x"_1",x"_3"})"\
-  c_4 &: overline(x)_1 or x_2 or x_3 quad &"(2 true: {x"_2",x"_3"})"
-$
-
-So $phi = c_1 and c_2 and c_3 and c_4$.
-
-*Step 2: Incidence graph and matrix.* 
-
-Variables: ${x_1, x_2, x_3}$, Clauses: ${c_1, c_2, c_3, c_4}$
-
-The incidence matrix $M$ (variables as rows, clauses as columns):
-$
-  M = mat(
-    1, 1, 1, 0;
-    1, 1, 0, 1;
-    1, 0, 1, 1
-  ) quad "(over " bb(F)_2")"
-$
-
-For example, $M_(1,1) = 1$ because $x_1$ appears in $c_1$ (as $overline(x)_1$).
-
-*Step 3: Bipartition $A = {x_1}$, $B = {x_2, x_3, c_1, c_2, c_3, c_4}$.*
-
-The cut matrix $M_(A, B)$ (rows from $A$, columns from $B$):
-$
-  M_(A, B) = mat(augment: #2,
-    1, 1, 1, 1, 1, 0
-  )
-$
-(First 2 entries: edges to ${x_2, x_3}$; next 4: edges to clauses)
-
-This is a single non-zero row:
-$
-  "cut-rank"({x_1}, B) = 1
-$
-
-*Step 4: Bipartition $A = {x_1, x_2}$, $B = {x_3, c_1, c_2, c_3, c_4}$.*
-
-The cut matrix:
-$
-  M_(A, B) = mat(augment: #1,
-    1, 1, 1, 1, 0;
-    1, 1, 1, 0, 1
-  )
-$
-
-Row reduce over $bb(F)_2$:
-$
-  mat(
-    1, 1, 1, 1, 0;
-    1, 1, 1, 0, 1
-  ) arrow.r.long^("R2 + R1") mat(
-    1, 1, 1, 1, 0;
-    0, 0, 0, 1, 1
-  )
-$
-
-Two linearly independent rows:
-$
-  "cut-rank"({x_1, x_2}, B) = 2
-$
-
-*Step 5: Check other bipartitions.*
-
-By symmetry:
-- Single variable partitions: cut-rank = 1
-- Two variable partitions: cut-rank = 2  
-- Partitions involving clauses: Similar analysis gives cut-rank ≤ 2
-
-*Step 6: Conclusion.*
-
-$
-  "rw"(phi) = min_"all cuts" {"cut-rank"} = 1
-$
-
-The minimum is achieved by single-variable cuts.
-
-*Why is this better than tree width?*
-
-The incidence graph is a complete bipartite $K_(3,4)$ (each variable connects to most clauses). Any tree decomposition needs a large bag, giving tree width ≥ 2. But rank width = 1!
+*Key Takeaway:* Tree width sees "many edges" (high complexity). Rank width sees "linear dependency" (low complexity). This makes rank width powerful for problems with hidden algebraic structure like XOR-SAT.
 
 #figure(canvas(length: 1.5cm, {
   import draw: *
@@ -443,10 +280,8 @@ The incidence graph is a complete bipartite $K_(3,4)$ (each variable connects to
   content((1.7, 1.6), text(8pt, red)[rank=1])
   content((2, -0.2), text(9pt)[rw = 1])
 }),
-caption: [Tree width vs rank width for the XOR formula. Tree decomposition needs all variables in one bag (tw ≥ 2), but rank decomposition achieves width 1.]
+caption: [Tree width vs rank width for the XOR formula. Tree decomposition needs all variables in one bag (tw ≥ 2) due to dense connections, but rank decomposition achieves width 1 by exploiting linear dependency.]
 )
-
-*Key insight:* For the XOR constraint, two assignments $(x_1, x_2) = (0, 1)$ and $(1, 0)$ are equivalent because they have the same parity over $bb(F)_2$. The rank-1 structure captures this algebraic symmetry, collapsing 4 assignments into 2 equivalence classes.
 
 #figure(canvas({
   import draw: *
@@ -629,281 +464,118 @@ caption: [Boundary equivalence as dimensionality reduction: The linear map $M_(A
 
 This basis transformation perspective explains why rank width is so powerful: it automatically discovers the *minimal set of effective degrees of freedom* at the boundary, exploiting algebraic structure that tree-based methods cannot see.
 
-==== Connection to tensor networks: SVD compression
+==== Connection to tensor networks and SVD
 
-The basis transformation view of boundary equivalence has a direct correspondence with *SVD compression* in tensor networks (MPS/TTN)!
+We can now rigorously connect three concepts: rank decomposition, tensor networks, and SVD compression.
 
-*Encoding \#SAT as a tensor network:*
+*1. Encoding \#SAT as a tensor network*
 
-Each variable $x_i$ and clause $c_j$ can be encoded as a tensor:
-- Variable tensor: $T^(x_i)_(s_i) = 1$ for $s_i in {0, 1}$ (identity, dimension 2)
-- Clause tensor: $C^(c_j)_(s_(i_1), ..., s_(i_k)) = cases(1 "if clause satisfied", 0 "otherwise")$
+Each variable $x_i$ and clause $c_j$ becomes a tensor in a network:
+- Variable tensor $T^(x_i)$: Rank-1 tensor (vector) of dimension 2, representing physical state.
+- Clause tensor $C^(c_j)$: Rank-$k$ tensor where $k$ is clause width. $C = 1$ if satisfied, 0 otherwise.
 
-The model count is the tensor network contraction:
+The model count is the contraction of this entire network:
 $
-  \#"SAT"(phi) = sum_(s_1, ..., s_n in {0,1}) product_j C^(c_j)(...) = "contract"(T N)
+  \#"SAT"(phi) = "contract"(product_i T^(x_i) times product_j C^(c_j))
 $
 
-*Rank decomposition ↔ Tensor tree network:*
+*2. Tree structure induces contraction order*
 
-A rank decomposition naturally defines a binary tree tensor network (TTN):
-- Leaves: Variable/clause tensors
-- Internal nodes: Partial contractions over subtrees
-- Each edge: A bond connecting two subtrees
+A rank decomposition tree $T$ defines a *hierarchical contraction order*:
+- Leaves are individual tensors.
+- Internal nodes represent partial contractions of subtrees.
+- Edges represent virtual bonds between intermediate tensors.
 
-*Boundary equivalence ↔ SVD at bonds:*
+*3. Rank width bounds the bond dimension*
 
-At each cut $(A, B)$ in the rank decomposition:
+At any cut $(A, B)$ in the tree, we have a partially contracted tensor $cal(T)_A$ representing the left subtree.
 
-#table(
-  columns: (auto, auto),
-  align: left,
-  [*Rank decomposition*], [*Tensor network*],
-  [Assignment $bold(x)_A in {0,1}^(|A|)$], [Physical indices in subtree $A$],
-  [Boundary vector $bold(b) in bb(F)_2^r$], [Virtual bond index (dimension $2^r$)],
-  [Linear map $M_(A,B)^top$], [Unfolding + SVD of contracted tensor],
-  [Cut-rank $r$], [Bond dimension after compression],
-  [Basis transformation], [Gauge transformation to canonical form]
-)
-
-*The SVD connection:*
-
-Let $T_A$ be the tensor representing all configurations in subtree $A$, with shape $2^(|A|) times dots.c$ (physical indices on one side, rest on the other). When we contract towards the cut:
-
-1. *Unfold* $T_A$ into a matrix with rows = internal indices, columns = boundary indices
-2. *Compute SVD*: $T_A = U Sigma V^dagger$
-3. *Truncate* to rank $r$: Keep only singular values corresponding to non-zero entries
-4. The rank $r$ equals the cut-rank over $bb(F)_2$ for Boolean tensors!
-
-The boundary vector $bold(b)$ corresponds to the *virtual bond index* after SVD compression.
-
-#figure(canvas(length: 1.4cm, {
-  import draw: *
-  
-  // Left subtree (side A)
-  content((-2.5, 2), text(10pt)[*Subtree A*])
-  for (i, y) in ((1, 0.5), (2, 0), (3, -0.5)) {
-    circle((-3, y), radius: 0.15, fill: blue.lighten(70%), name: "a"+str(i))
-    content((-3, y), text(7pt)[$x_#i$])
-  }
-  
-  // Contracted tensor
-  circle((-1.5, 0), radius: 0.3, fill: purple.lighten(70%), name: "TA")
-  content((-1.5, 0), text(9pt)[$T_A$])
-  
-  for i in range(1, 4) {
-    line("a"+str(i), "TA", stroke: (thickness: 0.5pt))
-  }
-  
-  // Bond (before compression)
-  line((-1.2, 0), (-0.3, 0), stroke: (thickness: 3pt, paint: gray), name: "bond1")
-  content((-0.75, 0.4), text(8pt)[dim $2^(|A|)$])
-  
-  // SVD arrow
-  content((0.5, 0), text(11pt)[SVD])
-  line((1, 0.2), (1.5, 0.2), mark: (end: ">"))
-  
-  // After compression
-  circle((2.2, 0), radius: 0.3, fill: purple.lighten(70%), name: "U")
-  content((2.2, 0), text(9pt)[$U$])
-  line((2.5, 0), (3.2, 0), stroke: (thickness: 1.5pt, paint: red), name: "bond2")
-  content((2.85, 0.4), text(8pt, red)[dim $2^r$])
-  
-  content((3.5, 0.4), text(9pt)[$dots.c arrow.r$])
-  content((2.2, -0.8), text(9pt)[Compressed])
-  
-  content((-1.5, -1.5), text(9pt)[Basis: original])
-  content((2.2, -1.5), text(9pt)[Basis: boundary])
-}),
-caption: [Tensor network perspective: Contracting subtree $A$ produces tensor $T_A$. SVD at the cut compresses bond dimension from $2^(|A|)$ to $2^r$, corresponding to the basis transformation from original variables to boundary equivalence classes.]
-)
-
-*Why Boolean tensors have special structure:*
-
-For \#SAT, tensors have entries in ${0, 1}$. Over $bb(F)_2$:
-- Many configurations may map to the same boundary state due to linear dependencies
-- The effective rank is often much smaller than the naive dimension $2^(|A|)$
-- SVD automatically finds this compressed representation
-
-*MPS example:* For the XOR constraint $x_1 xor x_2 xor x_3 = 0$, with partition between $(x_1, x_2)$ and $(x_3)$:
-- Variables in left part: ${x_1, x_2}$
-- Naive bond dimension (TN): $2^2 = 4$ configurations of $(x_1, x_2)$
-- But rank width considers the incidence graph including clauses!
-- Rank width at this cut = 1 (computed from the full incidence matrix)
-- DP state space: $2^1 = 2$ states (corresponding to parity equivalence)
-- The DP state space size relates to, but is not exactly, the tensor bond dimension
-
-*Important distinction:* Rank width and bond dimension are related but NOT the same!
-
-#proposition([Rank width bounds DP state space])[
-  For the rank-decomposition-based DP algorithm for \#SAT:
-  - The rank width $r$ at a cut $(A, B)$ bounds the number of _equivalence classes_ of partial assignments
-  - The DP state space has dimension $O(2^r)$ 
-  - This is NOT the same as tensor network bond dimension, which lives in configuration space
+#proposition([Equivalence of Rank Width and Compressed Bond Dimension])[
+  Let $r = "rank"(M_(A,B))$ be the cut-rank of the incidence matrix over $bb(F)_2$.
+  Then, the tensor $cal(T)_A$ can be compressed via SVD to a bond dimension $chi = 2^r$.
 ]
 
-*The key distinction:*
+*Proof Sketch:*
+The incidence matrix $M_(A,B)$ captures the *linear dependencies* in how variables in $A$ interact with clauses in $B$.
+- If $M_(A,B)$ has rank $r$, there are $2^r$ equivalence classes of assignments in $A$.
+- These equivalence classes form an orthogonal basis for the interaction space.
+- SVD on the tensor $cal(T)_A$ (unfolded) will find exactly $2^r$ non-zero singular values corresponding to these classes.
+
+*Example: XOR constraint $x_1 xor x_2 xor x_3 = 0$*
+
+Let's compare the naive bond dimension vs. the compressed one for the cut $A={x_1, x_2}, B={x_3, "clauses"}$.
+
+*A. Naive Contraction (No SVD)*
+- Tensor $cal(T)_A$ carries indices for $x_1, x_2$.
+- Bond dimension $chi_"naive" = 2^2 = 4$.
+- States: $(0,0), (0,1), (1,0), (1,1)$.
+
+*B. SVD Compression (Tensor Network)*
+- Unfold $cal(T)_A$ to matrix.
+- SVD reveals only 2 non-zero singular values.
+- Compressed bond dimension $chi_"SVD" = 2$.
+- The relevant states are parity classes: $x_1 xor x_2 = 0$ and $x_1 xor x_2 = 1$.
+
+*C. Rank Width Analysis (Decision Diagram)*
+- For this cut $A={x_1, x_2}$, the incidence matrix rank is $r = 2$.
+- DP state space bound: $2^r = 4$.
+- *Note:* Rank width purely based on graph structure is an upper bound. SVD can be tighter (2) by exploiting value symmetries.
+- *However*, rank width guides us to find a *better tree* (e.g., cutting at $x_1$) where $r=1$, matching the optimal SVD complexity!
+
+*4. Why Rank Width? (Global Optimization)*
+
+If SVD can compress bonds, why do we need rank width?
+
+*Answer:* *Global Structure Optimization.*
+
+SVD is a *local* tool—it compresses a specific bond given a specific tree. Rank width is the *global* measure that tells us *which tree* allows for the best compression everywhere.
 
 #table(
   columns: (auto, auto),
   align: left,
-  [*Rank width $r$*], [*Bond dimension $chi$*],
-  [Computed from incidence matrix $M_(A,B)$], [Dimension of virtual index in tensor],
-  [Rank over $bb(F)_2$ of graph structure], [Size of index in configuration space],
-  [Measures linear dependencies in constraints], [Measures entanglement/correlation],
-  [Partition includes variables AND clauses], [Partition of physical variables only],
-  [DP state space: $O(2^r)$], [Tensor bond: $O(2^(|A_"var"|))$ before compression],
+  [*Local Tool (SVD)*], [*Global Theory (Rank Width)*],
+  [Given a tree, optimizes bond $e$], [Finds the optimal tree $T$],
+  [Computational reduction], [Structural complexity bound],
+  [$chi_e arrow.r 2^(r_e)$], [$min_T max_e r_e$],
 )
 
-*What's actually happening:*
+For the XOR example:
+- *Bad Tree:* Linear chain $x_1 - x_2 - x_3$. Max cut-rank = 2. Max bond dim = 4.
+- *Good Tree:* Balanced decomposition. Max cut-rank = 1. Max bond dim = 2.
 
-When we partition the incidence graph into $(A, B)$:
-- $A$ contains some variables ${x_1, ..., x_k}$ and some clauses ${c_1, ..., c_m}$
-- Rank width $r = "rank"(M_(A,B))$ over $bb(F)_2$
-- DP tracks equivalence classes based on how assignments affect the other side
-- Number of DP states $approx 2^r$, but this is about the _information flow_, not directly bond dimension
+Rank width theory guarantees that a "good tree" exists and bounds its worst-case complexity. Tensor networks with SVD provide the practical machinery to execute the contraction efficiently on that tree.
 
-In tensor network language:
-- Bond dimension = size of virtual index between contracted parts
-- For variables in $A$: naive bond dimension is $2^k$ (all configurations)
-- Compression reduces this, but the achievable compression depends on:
-  1. How many variables are in the cut
-  2. The constraint structure (captured partially by rank width)
-  
-The relationship is subtle: low rank width implies the DP is efficient, which means the _effective_ information crossing the boundary is small, but this doesn't directly translate to a simple formula for tensor bond dimension.
-
-This connection reveals that:
-- Rank decomposition DP = Tensor tree network contraction with compression
-- Low rank width = DP state space is small ($O(2^r)$ equivalence classes)
-- The $bb(F)_2$ structure in Boolean problems enables efficient state space compression
-
-==== Why rank width matters: Finding the optimal tree structure
-
-*Question:* If SVD can capture low-rankness at any bond, why do we need rank width? Can't we just apply SVD to an arbitrary tensor tree?
-
-*Answer:* Rank width solves a fundamentally different problem: _finding the optimal tree structure itself_.
-
-The key distinction:
-
-#table(
-  columns: (auto, auto),
-  align: left,
-  [*SVD (Computational tool)*], [*Rank width (Structural parameter)*],
-  [Compresses a *given* bond], [Finds the *best tree decomposition*],
-  [Local operation at one cut], [Global optimization over all trees],
-  [Answers: "How low-rank is *this* bond?"], [Answers: "What tree gives the *lowest* max rank?"],
-  [Algorithmic technique], [Complexity measure],
-)
-
-*The problem with arbitrary trees:*
-
-Consider the XOR constraint $x_1 xor x_2 xor x_3 = 0$:
-
-*Bad tree structure (sequential):*
-```
-    x₁ ─ x₂ ─ x₃ ─ clauses
-```
-- Cut after $x_1$: rank = 1 ✓
-- Cut after $x_2$: Must track $(x_1, x_2)$ interactions with $(x_3, "clauses")$ → rank = 2
-- Maximum rank = 2
-
-*Good tree structure (balanced):*
-```
-      ┌─x₁
-    ┌─┤
-  ──┤ └─x₂
-    └─x₃ + clauses
-```
-- Every cut: rank = 1 ✓
-- Maximum rank = 1
-
-SVD at each bond gives the same local compressions, but the *global* complexity depends on the *tree structure*!
-
-*Rank width = Optimal tree structure:*
-
-Rank width is the solution to the optimization problem:
-$
-  "rw"(phi) = min_("binary trees" T) max_("cuts" e "in" T) "rank"(M_(A_e, B_e))
-$
-
-This is a _global optimization_ over exponentially many possible tree structures. Finding the optimal tree is itself a hard problem (but tractable for bounded rank width using dynamic programming on the powerset).
-
-*Why this matters for complexity:*
-
-#table(
-  columns: (auto, auto, auto),
-  align: left,
-  [*Tree structure*], [*Max bond dim*], [*Complexity*],
-  [Arbitrary tree], [$2^(O(n))$ worst case], [Exponential],
-  [Tree width decomposition], [$2^("tw")$], [Exponential in tw],
-  [Optimal rank decomp], [$2^("rw")$], [Exponential in rw],
-)
-
-For XOR formulas:
-- Arbitrary tree: max bond dim = $O(n)$ → complexity $2^(O(n))$
-- Optimal rank decomp: max bond dim = $O(1)$ → complexity $O(n)$
-
-*Practical implications:*
-
-1. *Without rank width analysis:* 
-   - Use heuristic tree structure
-   - Apply SVD at each bond
-   - No guarantees on overall complexity
-   - May still be exponential
-
-2. *With rank width analysis:*
-   - Find provably optimal tree structure
-   - Guarantees $max "bond" = 2^("rw")$
-   - Polynomial time for constant rank width
-   - Can prove tractability a priori
-
-*The deeper insight:*
-
-Rank width is not just about compression—it's about _problem structure_. It tells us:
-- Whether a problem has hidden algebraic structure
-- What tree decomposition exploits that structure optimally  
-- What complexity class the problem belongs to
-
-SVD is the *mechanism* for exploiting low-rankness locally. Rank width is the *theory* that tells us:
-1. Whether low-rankness exists globally
-2. How to find the tree structure that achieves it
-3. What complexity to expect
-
-#theorem([Rank width as complexity measure])[
-  A problem with rank width $r$ can be solved in time $O(n times 2^(O(r^2)))$. This is a _structural_ complexity bound, independent of the specific algorithm used—any method that exploits the optimal tree structure achieves this.
+#theorem([Unified View])[
+  The rank-decomposition DP algorithm is mathematically equivalent to contracting a Tensor Tree Network (TTN) where every bond is compressed to its optimal rank via SVD. The "rank width" of the formula corresponds to the logarithm of the maximum bond dimension required in the optimal TTN.
 ]
-
-In summary: _SVD is the tool, rank width is the blueprint that tells you where and how to use it optimally._
 
 ==== Algorithm outline
 
+The dynamic programming proceeds bottom-up on the rank decomposition tree:
+
 *Step 1: Initialize leaves.* 
-- For variable leaf $x_i$: Create states for $x_i = 0$ and $x_i = 1$, each with count = 1
-- For clause leaf $c_j$: Create one state (clauses don't get assigned), count = 1
+- For variable leaf $x_i$: Create states for $x_i = 0$ and $x_i = 1$, each with count = 1.
+- For clause leaf $c_j$: Create one state (clauses don't get assigned), count = 1.
 
-*Step 2: Merge internal nodes.* At each internal node combining subtrees with bipartition $(A_"left", A_"right")$ into $A$:
-- For each pair of boundary vectors $(bold(b)_"left", bold(b)_"right")$:
-  + Compute the combined boundary vector $bold(b)_"new"$ for the parent cut
-  + Check constraints between left and right (clauses satisfied, etc.)
-  + If valid: Update $C[bold(b)_"new"] arrow.l C[bold(b)_"new"] + C_"left"[bold(b)_"left"] dot C_"right"[bold(b)_"right"]$
+*Step 2: Merge internal nodes.* 
+At a node combining subtrees $L$ and $R$:
+- Iterate over all pairs of states $(b_L, b_R)$ from children.
+- Compute new boundary $b_"new" = b_L + b_R$ (or appropriate linear combination).
+- Check consistency (e.g., if any fully-formed clauses are satisfied).
+- Update: $C(b_"new") arrow.l C(b_"new") + C_L(b_L) dot C_R(b_R)$.
 
-*Step 3: Root node.* At the root, the boundary is empty (no cut). Sum counts over all boundary vectors that represent globally satisfying assignments.
+*Step 3: Root node.* 
+Sum counts over all valid states at the root (usually the empty boundary vector $bold(0)$).
 
 ==== Complexity analysis
 
 For a rank decomposition of width $r$:
-- Number of states per node: $O(2^r)$
-- Number of nodes: $O(n + m)$ where $n$ is variables and $m$ is clauses
-- Merge operation: $O(2^(2r))$ to combine two subtrees
-- Total time: $O((n + m) dot 2^(2r))$
+- *State space*: Each node stores at most $2^r$ states.
+- *Merge cost*: Combining two tables requires iterating pairs or matrix multiplication, taking $O(2^(3r))$ time (or $O(2^(2r))$ with sparse interactions).
+- *Total time*: With $N$ nodes in the decomposition, the complexity is $O(N dot 2^(3r))$.
 
-For formulas with constant rank width, this gives polynomial time!
+This matches the complexity of contracting the corresponding tensor network with bond dimension $2^r$.
 
-#theorem([Efficiency of rank-decomposition DP])[
-  For \#SAT on a formula with rank width $r$:
-  - States per node: $2^r$ (independent of subtree size)
-  - Total complexity: $O(n dot 2^(3r))$
-  - For constant rank width, this is polynomial time
+#theorem([Efficiency of Rank Width DP])[
+  The \#SAT problem for a formula with rank width $r$ can be solved in time $O(n dot 2^(3r))$. This is polynomial for constant $r$, providing a tractable approach for structured instances like XOR formulas where tree width fails.
 ]
-
-The exponential improvement comes from the fact that rank width captures the _information bottleneck_ between subtrees more precisely than tree width. The rank over $bb(F)_2$ identifies which partial assignments are equivalent in terms of their effect on satisfying clauses across the cut.
