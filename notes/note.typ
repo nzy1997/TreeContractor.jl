@@ -29,6 +29,15 @@
   content((), text(black, label))
 }
 
+#let definition = thmbox("definition", "Definition", inset: (x: 1.2em, top: 1em, bottom: 1em), base: none, stroke: none, fill: rgb("#e8f4fd"), namefmt: x => [(#strong[#x.])], titlefmt: x => [(#emph[#x])])
+#let theorem = thmbox("theorem", "Theorem", base: none, stroke: none, fill: rgb("#f0f9e8"), namefmt: x => [(#strong[#x.])], titlefmt: x => [(#emph[#x])])
+#let lemma = thmbox("lemma", "Lemma", base: "theorem", stroke: none, fill: rgb("#f0f9e8"), namefmt: x => [(#strong[Lemma #x.])], titlefmt: x => [(#emph[#x])])
+#let corollary = thmbox("corollary", "Corollary", base: "theorem", stroke: none, fill: rgb("#f0f9e8"), namefmt: x => [(#strong[Corollary #x.])], titlefmt: x => [(#emph[#x])])
+#let proposition = thmbox("proposition", "Proposition", base: "theorem", stroke: none, fill: rgb("#f0f9e8"), namefmt: x => [(#strong[Proposition #x.])], titlefmt: x => [(#emph[#x])])
+#let proof = thmproof("proof", "Proof")
+#let ket(it) = [$|#it angle.r$]
+
+
 = Tree contractor
 
 Given a tree decomposition of a tensor network, can we contract the tensor network efficiently?
@@ -159,6 +168,28 @@ caption: [(a) A tensor network. (b) A line graph for the tensor network. Labels 
   line("g", "b", stroke: colors.at(2))
   line("b", "f", stroke: colors.at(2))
 
+  let dy = 0.4
+  let cup = (rel: (0, dy), to: "c")
+  let dup = (rel: (0, dy), to: "d")
+  let eup = (rel: (0, dy), to: "e")
+  let gup = (rel: (0, dy), to: "g")
+  let mup = (rel: (0, dy), to: "M1")
+  line(cup, mup, dup, stroke: red, name: "l1")
+  line(eup, gup, mup, dup, stroke: red, name: "l2")
+  line(cup, (anchor: 30%, name: "l1"), stroke: red, mark: (end: "straight"))
+  line(eup, (anchor: 12%, name: "l2"), stroke: red, mark: (end: "straight"))
+  line(gup, (anchor: 45%, name: "l2"), stroke: red, mark: (end: "straight"))
+  line(mup, (anchor: 80%, name: "l1"), stroke: red, mark: (end: "straight"))
+  line(mup, (anchor: 70%, name: "l1"), stroke: red, mark: (end: "straight"))
+  line(cup, "c", stroke: red)
+  line(eup, "e", stroke: red)
+  line(gup, "g", stroke: red)
+  line(dup, "d", stroke: red)
+  for (node, color) in ((dup, black), (eup, red), (gup, red), (mup, red), (cup, red)) {
+    circle(node, radius: 0.1, fill: color, stroke: none)
+  }
 }))
-+ Assign , and perform _tree factorization_ to connect label. The _tree factorization_ is a tensor factorization determined by the underlying tree structure.
++ Assign , and perform _tree factorization_ to connect label. The _tree factorization_ is a tensor factorization determined by the underlying tree structure. e.g. the above $T_4$ can be factored as the MPS/MPO shown in red, where red tensors denotes $delta$ tensors and the black tensors denotes the original tensor $T_4$.
+
+#theorem([The bond dimension of the above tree tensor network does not exceed the tree decomposition's maximum separator size.])
 
