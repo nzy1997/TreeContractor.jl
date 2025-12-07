@@ -189,7 +189,266 @@ caption: [(a) A tensor network. (b) A line graph for the tensor network. Labels 
     circle(node, radius: 0.1, fill: color, stroke: none)
   }
 }))
-+ Assign , and perform _tree factorization_ to connect label. The _tree factorization_ is a tensor factorization determined by the underlying tree structure. e.g. the above $T_4$ can be factored as the MPS/MPO shown in red, where red tensors denotes $delta$ tensors and the black tensors denotes the original tensor $T_4$.
++ Perform _tree factorization_ to each tensor. The _tree factorization_ is a tensor factorization determined by the underlying tree structure. e.g. the above $T_4$ can be factored as the MPS/MPO shown in red, where red tensors denotes $delta$ tensors and the black tensors denotes the original tensor $T_4$.
 
 #theorem([The bond dimension of the above tree tensor network does not exceed the tree decomposition's maximum separator size.])
 
+== \#SAT and rank width
+
+The \#SAT (model counting) problem asks: given a Boolean formula in CNF (conjunctive normal form), how many satisfying assignments exist?
+
+For example, the formula $(x_1 or x_2) and (x_2 or x_3) and (x_3 or x_4)$ has multiple satisfying assignments. Model counting is \#P-complete, but becomes tractable for formulas with bounded structural width.
+
+=== Rank width
+
+The _rank width_ is a structural parameter that characterizes the difficulty of solving \#SAT using tree-based decomposition methods. It is defined based on the rank decomposition of the _incidence graph_.
+
+#definition([Incidence graph])[
+  For a CNF formula $phi$ with variables $V$ and clauses $C$, the _incidence graph_ $G = (V union C, E)$ is a bipartite graph where each variable $v in V$ is connected to each clause $c in C$ that contains $v$ or $overline(v)$.
+]
+
+#definition([Rank width])[
+  Let $G = (V union C, E)$ be the incidence graph of a CNF formula. For a bipartition $(A, B)$ of vertices, the _cut-rank_ is:
+  $
+    "cut-rank"(A, B) = "rank"(M_(A, B))
+  $
+  where $M_(A, B)$ is the submatrix of the adjacency matrix with rows indexed by $A$ and columns indexed by $B$, and the rank is computed over $bb(F)_2$ (the binary field).
+  
+  A _rank decomposition_ of $G$ is a binary tree $T$ whose leaves correspond to vertices in $V union C$. For each edge $e$ in $T$, removing $e$ partitions the leaves into two sets $A$ and $B$. The _width_ of $T$ is:
+  $
+    "width"(T) = max_("edge" e "of" T) "cut-rank"(A_e, B_e)
+  $
+  
+  The _rank width_ of $phi$ is:
+  $
+    "rw"(phi) = min_("rank decompositions" T) "width"(T)
+  $
+]
+
+#theorem([Dynamic programming complexity])[
+  The \#SAT problem for a formula with rank width $r$ can be solved in time $O(n dot 2^(3r))$ using dynamic programming along a rank decomposition of width $r$.
+]
+
+The rank width provides a finer measure of formula complexity compared to tree width. For example, formulas with dense clause structure can have bounded rank width but unbounded tree width.
+
+==== Example: XOR constraints - Rank width vs Tree width
+
+Consider a formula encoding XOR (parity) constraints. We express "$x_1 xor x_2 xor ... xor x_k = 0$" (even parity) in CNF, which requires exponentially many clauses but has nice algebraic structure.
+
+For simplicity, consider a system of $n$ variables with $m$ XOR constraints, where each constraint involves $k$ variables. This can be represented as:
+$
+  phi = and.big_(i=1)^m "XOR-CNF"(S_i)
+$
+where $S_i subset {x_1, ..., x_n}$ with $|S_i| = k$.
+
+*Example with $n=4$ variables, one global XOR constraint:*
+$
+  x_1 xor x_2 xor x_3 xor x_4 = 0 quad "(even parity)"
+$
+
+This is encoded in CNF as "an even number of variables must be true":
+$
+  phi = (overline(x)_1 or overline(x)_2 or overline(x)_3 or overline(x)_4) and 
+        (x_1 or x_2 or overline(x)_3 or overline(x)_4) and ... quad "(8 clauses total)"
+$
+
+*Tree width analysis:* The incidence graph for XOR constraints is highly connected. Each of the 8 clauses connects to all 4 variables, creating a dense bipartite structure. The tree width is $Omega(k) = Omega(4) = 3$ or higher.
+
+*Rank width analysis:* Consider the bipartition $A = {x_1, x_2}$ and $B = {x_3, x_4} union "clauses"$. 
+
+The key insight: Over $bb(F)_2$, XOR constraints have *linear structure*. The effect of assigning $(x_1, x_2)$ on the clauses is determined by the *parity* $x_1 xor x_2$ alone!
+
+The cut matrix $M_(A, B)$ has rows for ${x_1, x_2}$ and columns for ${x_3, x_4}$ and the clauses. Due to the XOR structure:
+- All information about $(x_1, x_2)$ visible from $B$ is captured by their parity
+- The rank is at most 2 (actually can be 1 for symmetric XOR formulas)
+
+*General case:* For a system of $m$ linear constraints over $bb(F)_2$ on $n$ variables:
+- Tree width: Can be $Theta(n)$ for dense constraint systems
+- Rank width: At most $min(m, n)$, often much smaller due to linear dependencies
+
+#figure(canvas(length: 1.5cm, {
+  import draw: *
+  
+  // XOR constraint structure
+  content((0, 2), text(11pt)[*XOR: $x_1 xor x_2 xor x_3 xor x_4 = 0$*])
+  
+  let var_y = 0.8
+  let clause_y = 0
+  
+  // Variables
+  for (i, x) in ((1, -2), (2, -0.7), (3, 0.7), (4, 2)) {
+    circle((x, var_y), radius: 0.15, fill: blue.lighten(70%), name: "x"+str(i))
+    content((x, var_y), text(8pt)[$x_#i$])
+  }
+  
+  // Show 4 representative clauses (out of 8)
+  for (i, x) in ((1, -1.8), (2, -0.6), (3, 0.6), (4, 1.8)) {
+    circle((x, clause_y), radius: 0.12, fill: red.lighten(70%), name: "c"+str(i))
+  }
+  content((0, -0.5), text(7pt)[... 8 clauses ...])
+  
+  // Dense connections
+  for i in range(1, 5) {
+    for j in range(1, 5) {
+      line("x"+str(i), "c"+str(j), stroke: (thickness: 0.3pt, paint: gray))
+    }
+  }
+  
+  // Cut
+  line((0, -0.8), (0, 1.3), stroke: (thickness: 1.5pt, dash: "dashed", paint: red), name: "cut")
+  content((0.3, 1.5), text(9pt, red)[cut])
+  
+  // Labels
+  content((-1.3, 1.5), text(10pt, blue)[Side $A$])
+  content((1.3, 1.5), text(10pt, green)[Side $B$])
+  
+  // Boundary info
+  content((-1.3, -1.2), text(8pt)[4 assignments])
+  content((-1.3, -1.5), text(8pt)[to $(x_1, x_2)$])
+  content((0.5, -1.2), text(8pt, purple)[But only 2])
+  content((0.5, -1.5), text(8pt, purple)[parities!])
+  content((0.5, -1.8), text(7pt, purple)[$x_1 xor x_2 in {0,1}$])
+}),
+caption: [XOR constraint creates dense incidence graph (high tree width) but has low rank width because assignments are equivalent under parity over $bb(F)_2$.]
+)
+
+*Key insight:* For formulas encoding *linear algebraic structure* (systems of linear equations over $bb(F)_2$), rank width can be exponentially better than tree width:
+- Tree width: $O(n)$ for dense systems
+- Rank width: $O("rank of constraint matrix")$, often constant or logarithmic
+
+Examples include error-correcting codes, cryptographic constraints, and parity games—all have natural $bb(F)_2$ structure that rank width captures perfectly.
+
+#figure(canvas({
+  import draw: *
+  let d = 1.5
+  
+  // Draw a simpler incidence graph for XOR
+  // Variables on left
+  for (i, y) in ((1, 1.5), (2, 0.5), (3, -0.5), (4, -1.5)) {
+    circle((0, y*0.6), radius: 0.2, name: "x"+str(i), fill: blue.lighten(70%))
+    content((0, y*0.6), text(10pt)[$x_#i$])
+  }
+  
+  // Representative clauses on right (showing structure)
+  for (i, y) in ((1, 1.2), (2, 0.4), (3, -0.4), (4, -1.2)) {
+    circle((2.5, y*0.6), radius: 0.15, name: "c"+str(i), fill: red.lighten(70%))
+    content((2.5, y*0.6), text(8pt)[$c_#i$])
+  }
+  
+  // Each clause connects to all 4 variables (dense)
+  for i in range(1, 5) {
+    for j in range(1, 5) {
+      line("x"+str(i), "c"+str(j), stroke: (thickness: 0.4pt, paint: gray.lighten(20%)))
+    }
+  }
+  
+  content((1.25, -1.5), text(10pt)[Dense: Each clause])
+  content((1.25, -1.8), text(10pt)[contains all 4 vars])
+  
+  content((1.25, 1.5), text(11pt)[Incidence graph])
+}),
+caption: [Incidence graph for XOR constraints. Each clause connects to many variables (dense structure), giving high tree width but low rank width due to $bb(F)_2$ linear structure.])
+
+*Key insight:* For formulas encoding *linear algebraic structure* (systems of linear equations over $bb(F)_2$), rank width can be exponentially better than tree width:
+
+=== Dynamic programming on rank decomposition for \#SAT
+
+The key to exploiting small rank width is a dynamic programming algorithm that processes the rank decomposition tree bottom-up. The crucial observation is that we only need to track *equivalence classes* of partial assignments based on their *interaction with the other side of the cut*.
+
+==== State representation
+
+For each internal node of the rank decomposition corresponding to a bipartition $(A, B)$, we maintain a table of states. Each state is characterized by:
+- A _boundary vector_ $bold(b) in bb(F)_2^r$ where $r = "cut-rank"(A, B)$
+- The _count_ of satisfying partial assignments in subtree $A$ that produce boundary vector $bold(b)$
+
+The boundary vector captures how the partial assignment in $A$ interacts with variables/clauses in $B$ through the linear span of the cut matrix $M_(A, B)$.
+
+#definition([Boundary equivalence])[
+  Two partial assignments $bold(x)_A, bold(x)'_A$ to variables in $A$ are _boundary equivalent_ if:
+  $
+    M_(A, B)^top bold(x)_A equiv M_(A, B)^top bold(x)'_A quad (mod 2)
+  $
+  where we treat the assignment as a vector in $bb(F)_2^(|A|)$.
+]
+
+*Intuition:* Imagine the bipartition $(A, B)$ as cutting the formula into two parts. To combine solutions from both sides later, we only need to know *how the assignment in $A$ affects clauses/variables in $B$*. 
+
+The matrix-vector product $M_(A, B)^top bold(x)_A$ gives a vector in $bb(F)_2^(|B|)$ that encodes:
+- For each element in $B$ (variable or clause), whether it's affected by the assignment in $A$
+
+Two assignments $bold(x)_A$ and $bold(x)'_A$ are equivalent if they have the *same effect* on $B$. When combining with solutions from $B$ later, equivalent assignments behave identically—they satisfy the same clauses across the cut and interact with the same variables.
+
+#figure(canvas(length: 1.8cm, {
+  import draw: *
+  
+  // Draw the cut
+  let h = 2
+  line((0, -0.5*h), (0, 0.5*h), stroke: (thickness: 2pt, dash: "dashed", paint: red))
+  
+  // Left side (A)
+  content((-1.5, 0.7*h), text(11pt, blue)[*Side A*])
+  content((-1.5, 0.4*h), text(9pt)[$x_1 = 1, x_2 = 0$])
+  content((-1.5, -0.1*h), text(9pt)[$x_1 = 0, x_2 = 1$])
+  content((-1.5, -0.5*h), text(8pt, olive)[Different assignments])
+  
+  // Boundary vectors
+  content((0, 0.4*h), text(9pt, red)[$arrow.r.long bold(b) = (1,0,1)$])
+  content((0, -0.1*h), text(9pt, red)[$arrow.r.long bold(b) = (1,0,1)$])
+  content((0, -0.8*h), text(8pt, purple)[Same boundary!])
+  
+  // Right side (B)
+  content((1.5, 0.7*h), text(11pt, green)[*Side B*])
+  content((1.5, 0.3*h), text(9pt)[sees: $(1,0,1)$])
+  content((1.5, 0), text(8pt)[Can't distinguish])
+  content((1.5, -0.3), text(8pt)[between $x_1=1,x_2=0$])
+  content((1.5, -0.5), text(8pt)[and $x_1=0,x_2=1$])
+}),
+caption: [Boundary equivalence: Different assignments in $A$ that produce the same boundary vector are indistinguishable from the perspective of side $B$.]
+)
+
+*Example:* Consider variables $x_1, x_2 in A$ connected to clauses $c_1, c_2, c_3 in B$. Suppose:
+- Clause $c_1$ contains both $x_1$ and $x_2$
+- Clause $c_2$ contains only $x_1$
+- Clause $c_3$ contains both $x_1$ and $x_2$
+
+In $bb(F)_2$ (mod 2 arithmetic):
+- Assignment $(x_1=1, x_2=0)$ affects $c_1$ by 1, $c_2$ by 1, $c_3$ by 1 → boundary $(1,1,1)$
+- Assignment $(x_1=0, x_2=1)$ affects $c_1$ by 1, $c_2$ by 0, $c_3$ by 1 → boundary $(1,0,1)$
+- Assignment $(x_1=1, x_2=1)$ affects $c_1$ by $1+1=0$ (mod 2), $c_2$ by 1, $c_3$ by 0 → boundary $(0,1,0)$
+
+Assignments with the same boundary are *interchangeable* when combining with solutions from $B$—they contribute identically to clause satisfaction across the cut.
+
+Since the cut-rank is $r$, there are at most $2^r$ distinct boundary vectors, regardless of the size of $A$. This is the key to efficiency!
+
+==== Algorithm outline
+
+*Step 1: Initialize leaves.* 
+- For variable leaf $x_i$: Create states for $x_i = 0$ and $x_i = 1$, each with count = 1
+- For clause leaf $c_j$: Create one state (clauses don't get assigned), count = 1
+
+*Step 2: Merge internal nodes.* At each internal node combining subtrees with bipartition $(A_"left", A_"right")$ into $A$:
+- For each pair of boundary vectors $(bold(b)_"left", bold(b)_"right")$:
+  + Compute the combined boundary vector $bold(b)_"new"$ for the parent cut
+  + Check constraints between left and right (clauses satisfied, etc.)
+  + If valid: $"count"[bold(b)_"new"] space += "count"_"left"[bold(b)_"left"] dot "count"_"right"[bold(b)_"right"]$
+
+*Step 3: Root node.* At the root, the boundary is empty (no cut). Sum counts over all boundary vectors that represent globally satisfying assignments.
+
+==== Complexity analysis
+
+For a rank decomposition of width $r$:
+- Number of states per node: $O(2^r)$
+- Number of nodes: $O(n + m)$ where $n$ is variables and $m$ is clauses
+- Merge operation: $O(2^(2r))$ to combine two subtrees
+- Total time: $O((n + m) dot 2^(2r))$
+
+For formulas with constant rank width, this gives polynomial time!
+
+#theorem([Efficiency of rank-decomposition DP])[
+  For \#SAT on a formula with rank width $r$:
+  - States per node: $2^r$ (independent of subtree size)
+  - Total complexity: $O(n dot 2^(3r))$
+  - For constant rank width, this is polynomial time
+]
+
+The exponential improvement comes from the fact that rank width captures the _information bottleneck_ between subtrees more precisely than tree width. The rank over $bb(F)_2$ identifies which partial assignments are equivalent in terms of their effect on satisfying clauses across the cut.
