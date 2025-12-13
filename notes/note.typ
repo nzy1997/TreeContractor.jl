@@ -1,6 +1,7 @@
 #import "@preview/cetz:0.4.0": canvas, draw, tree, coordinate
 #import "@preview/cetz-plot:0.1.2": *
 #import "@preview/ctheorems:1.1.3": *
+#import "@preview/algorithmic:1.0.7"
 
 #set math.equation(numbering: "(1)")
 #show link: set text(blue)
@@ -195,55 +196,29 @@ caption: [(a) A tensor network. (b) A line graph for the tensor network. Labels 
 
 == \#SAT and rank width
 
-The \#SAT (model counting) problem asks: given a Boolean formula in CNF (conjunctive normal form), how many satisfying assignments exist?
-
-For example, the formula $(x_1 or x_2) and (x_2 or x_3) and (x_3 or x_4)$ has multiple satisfying assignments. Model counting is \#P-complete, but becomes tractable for formulas with bounded structural width.
+The \#SAT (model counting) problem asks: given a Boolean formula $phi$ in CNF, how many satisfying assignments exist? Model counting is \#P-complete, but becomes tractable for formulas with bounded rank width.
 
 === Rank width
-
-The _rank width_ is a structural parameter that characterizes the difficulty of solving \#SAT using tree-based decomposition methods. It is defined based on the rank decomposition of the _incidence graph_.
 
 #definition([Incidence graph])[
   For a CNF formula $phi$ with variables $V$ and clauses $C$, the _incidence graph_ $G = (V union C, E)$ is a bipartite graph where each variable $v in V$ is connected to each clause $c in C$ that contains $v$ or $overline(v)$.
 ]
 
 #definition([Rank width])[
-  Let $G = (V union C, E)$ be the incidence graph of a CNF formula. For a bipartition $(A, B)$ of vertices, the _cut-rank_ is:
-  $
-    "cut-rank"(A, B) = "rank"(M_(A, B))
-  $
-  where $M_(A, B)$ is the submatrix of the adjacency matrix with rows indexed by $A$ and columns indexed by $B$, and the rank is computed over $bb(F)_2$ (the binary field).
+  Let $G = (V union C, E)$ be the incidence graph. For a bipartition $(A, B)$ of vertices, the _cut-rank_ is $"cut-rank"(A, B) = "rank"_(bb(F)_2)(M_(A, B))$, where $M_(A, B)$ is the submatrix with rows indexed by $A$ and columns by $B$, computed over $bb(F)_2$.
   
-  A _rank decomposition_ of $G$ is a binary tree $T$ whose leaves correspond to vertices in $V union C$. For each edge $e$ in $T$, removing $e$ partitions the leaves into two sets $A$ and $B$. The _width_ of $T$ is:
-  $
-    "width"(T) = max_("edge" e "of" T) "cut-rank"(A_e, B_e)
-  $
-  
-  The _rank width_ of $phi$ is:
-  $
-    "rw"(phi) = min_("rank decompositions" T) "width"(T)
-  $
+  A _rank decomposition_ is a binary tree $T$ with leaves in $V union C$. The _width_ is $max_("edge" e) "cut-rank"(A_e, B_e)$. The _rank width_ $"rw"(phi)$ is the minimum width over all rank decompositions.
 ]
 
-The rank width provides a finer measure of formula complexity compared to tree width. For example, formulas with dense clause structure can have bounded rank width but unbounded tree width.
+*Why $bb(F)_2$?* Operations over the binary field directly match Boolean logic: $x + y equiv x xor y$ and $x dot y equiv x and y$. Rank over $bb(F)_2$ captures linear dependencies in Boolean constraints (e.g., XOR is addition mod 2), revealing algebraic structure invisible to tree-based methods.
 
-==== Example: Parity constraint (XOR)
+=== Example: XOR constraint with rank-based DP
 
-Consider the constraint $x_1 xor x_2 xor x_3 = 0$ (even parity). In CNF, this requires 4 clauses, each connecting all 3 variables (e.g., $x_1 or x_2 or overline(x)_3$).
+*Problem:* Count satisfying assignments for $x_1 xor x_2 xor x_3 = 0$ (encoded as 4 CNF clauses).
 
-*Tree Width (Structural Complexity):*
-The incidence graph is a complete bipartite graph $K_(3,4)$ because every variable connects to every clause.
-- *Structure:* A dense web of connections.
-- *Implication:* Any tree decomposition must put all 3 variables in a single bag.
-- *Tree Width:* $>= 2$.
+*Known answer:* 4 assignments: $(0,0,0), (1,1,0), (1,0,1), (0,1,1)$.
 
-*Rank Width (Algebraic Complexity):*
-We analyze the information flow across a cut over $bb(F)_2$. Consider the partition $A={x_1}$ and $B={x_2, x_3, "clauses"}$.
-- *Effect of $A$:* The value of $x_1$ only sends 1 bit of information to the rest of the system: "what is my contribution to the parity?".
-- *Cut Matrix:* In the incidence matrix, the row for $x_1$ represents its connections to clauses. Despite connecting to all 4 clauses, this row vector lives in a 1-dimensional subspace relative to the rest of the graph's structure (due to linear dependencies over $bb(F)_2$).
-- *Rank Width:* 1.
-
-*Key Takeaway:* Tree width sees "many edges" (high complexity). Rank width sees "linear dependency" (low complexity). This makes rank width powerful for problems with hidden algebraic structure like XOR-SAT.
+*Key insight:* The incidence graph is dense ($K_(3,4)$), giving tree width $>= 2$. But cut matrix $M_({x_1}, {x_2,x_3,"clauses"}) = mat(1,1,1,1)$ has rank 1 over $bb(F)_2$ (all columns identical mod 2), so rank width = 1.
 
 #figure(canvas(length: 1.5cm, {
   import draw: *
@@ -313,6 +288,247 @@ caption: [Tree width vs rank width for the XOR formula. Tree decomposition needs
   content((1.25, 1.5), text(11pt)[Incidence graph])
 }),
 caption: [Incidence graph for XOR constraints. Each clause connects to many variables (dense structure), giving high tree width but low rank width due to $bb(F)_2$ linear structure.])
+
+=== Complete worked example: XOR-SAT with 3 variables
+
+Let's work through a concrete example step by step to see how rank decomposition provides exponential speedup over tree decomposition.
+
+*Problem:* Count satisfying assignments for the XOR constraint:
+$
+  x_1 xor x_2 xor x_3 = 0
+$
+
+This is encoded in CNF as 4 clauses (each enforcing even parity on some literal assignment):
+$
+  phi = c_1 and c_2 and c_3 and c_4
+$
+where:
+- $c_1 = overline(x)_1 or overline(x)_2 or overline(x)_3$ (at least one False)
+- $c_2 = x_1 or x_2 or overline(x)_3$ (at least one True in first two)
+- $c_3 = x_1 or overline(x)_2 or x_3$ (etc.)
+- $c_4 = overline(x)_1 or x_2 or x_3$
+
+*Answer:* 4 satisfying assignments (even parity): $(0,0,0), (1,1,0), (1,0,1), (0,1,1)$.
+
+==== Step 1: Construct the incidence graph
+
+The incidence graph $G = (V union C, E)$ connects each variable to each clause that contains it.
+
+#figure(canvas(length: 1.2cm, {
+  import draw: *
+  
+  // Variables (left side)
+  for (i, y) in ((1, 1.5), (2, 0.5), (3, -0.5)) {
+    circle((0, y), radius: 0.25, name: "x"+str(i), fill: blue.lighten(60%))
+    content((0, y), text(11pt)[$x_#i$])
+  }
+  
+  // Clauses (right side)
+  for (i, y) in ((1, 1.2), (2, 0.4), (3, -0.4), (4, -1.2)) {
+    circle((3, y), radius: 0.2, name: "c"+str(i), fill: red.lighten(60%))
+    content((3, y), text(9pt)[$c_#i$])
+  }
+  
+  // Edges (each clause connects to all 3 variables)
+  for i in range(1, 4) {
+    for j in range(1, 5) {
+      line("x"+str(i), "c"+str(j), stroke: (thickness: 0.6pt, paint: gray))
+    }
+  }
+  
+  content((1.5, -2), text(10pt)[Complete bipartite graph $K_(3,4)$])
+}),
+caption: [Incidence graph for $x_1 xor x_2 xor x_3 = 0$. Dense structure: every variable appears in every clause.]
+)
+
+*Adjacency matrix* $M$ (variables × clauses):
+$
+  M = mat(
+    1, 1, 1, 1;
+    1, 1, 1, 1;
+    1, 1, 1, 1;
+  ) in bb(F)_2^(3 times 4)
+$
+
+==== Step 2: Tree decomposition approach (for comparison)
+
+A tree decomposition must create bags containing overlapping variables that cover all edges.
+
+#figure(canvas(length: 1.3cm, {
+  import draw: *
+  
+  // Tree decomposition bags
+  circle((0, 1), radius: 0.6, name: "b1", fill: gray.lighten(70%))
+  circle((2, 1), radius: 0.6, name: "b2", fill: gray.lighten(70%))
+  circle((4, 1), radius: 0.6, name: "b3", fill: gray.lighten(70%))
+  
+  line("b1", "b2", stroke: (thickness: 1.5pt))
+  line("b2", "b3", stroke: (thickness: 1.5pt))
+  
+  content((0, 1.2), text(9pt)[$x_1, x_2$])
+  content((0, 0.9), text(8pt, olive)[$c_1, c_2, c_4$])
+  
+  content((2, 1.2), text(9pt)[$x_2, x_3$])
+  content((2, 0.9), text(8pt, olive)[])
+  
+  content((4, 1.2), text(9pt)[$x_3$])
+  content((4, 0.9), text(8pt, olive)[$c_3$])
+  
+  content((2, -0.3), text(11pt)[Tree decomposition: width = 2 (wrong!)])
+  content((2, -0.8), text(10pt, red)[State space: $2^2 = 4$ at separator])
+}),
+caption: [Tree decomposition requires width 2 because the graph is dense. Each separator needs to track 2 variables.]
+)
+
+*DP state space:*
+- At separator ${x_2, x_3}$: Need to track all $2^2 = 4$ assignments: $(0,0), (0,1), (1,0), (1,1)$.
+- Must check clause satisfaction for each combination.
+- *Complexity:* $O(2^("treewidth")) = O(2^2) = O(4)$ states per node.
+
+==== Step 3: Rank decomposition approach
+
+Now let's use rank decomposition, which exploits the linear structure over $bb(F)_2$.
+
+*Key insight:* Consider the partition $A = {x_1}$, $B = {x_2, x_3, c_1, c_2, c_3, c_4}$.
+
+The cut matrix $M_(A, B)$ is the submatrix of edges from $A$ to $B$:
+$
+  M_(A, B) = mat(1, 1, 1, 1) in bb(F)_2^(1 times 4)
+$
+
+*Rank analysis:*
+$
+  "rank"_(bb(F)_2)(M_(A, B)) = 1
+$
+because all columns are identical (all $1$s).
+
+This means: *From the perspective of $B$, there are only $2^1 = 2$ equivalence classes of assignments to $x_1$*, not $2^1 = 2$ distinct values!
+
+#figure(canvas(length: 1.5cm, {
+  import draw: *
+  
+  // Rank decomposition tree
+  circle((2, 3), radius: 0.15, name: "root", fill: purple)
+  circle((1, 2), radius: 0.15, name: "n1", fill: purple)
+  circle((3, 2), radius: 0.15, name: "n2", fill: purple)
+  
+  circle((0.5, 1), radius: 0.25, name: "x1", fill: blue.lighten(60%))
+  content((0.5, 1), text(10pt)[$x_1$])
+  
+  circle((1.5, 1), radius: 0.25, name: "x2", fill: blue.lighten(60%))
+  content((1.5, 1), text(10pt)[$x_2$])
+  
+  circle((3, 1), radius: 0.25, name: "x3", fill: blue.lighten(60%))
+  content((3, 1), text(10pt)[$x_3$])
+  
+  circle((4, 0.7), radius: 0.15, name: "c1", fill: red.lighten(60%))
+  content((4, 0.7), text(8pt)[$c_1$])
+  circle((4.5, 0.5), radius: 0.15, name: "c2", fill: red.lighten(60%))
+  content((4.5, 0.5), text(8pt)[$c_2$])
+  circle((4, 0.3), radius: 0.15, name: "c3", fill: red.lighten(60%))
+  content((4, 0.3), text(8pt)[$c_3$])
+  circle((4.5, 0.1), radius: 0.15, name: "c4", fill: red.lighten(60%))
+  content((4.5, 0.1), text(8pt)[$c_4$])
+  
+  line("x1", "n1")
+  line("x2", "n1")
+  line("x3", "n2")
+  line("n1", "root")
+  line("n2", "root", stroke: (thickness: 2pt, paint: red, dash: "dashed"))
+  
+  content((2.5, 2.3), text(9pt, red)[Cut rank = 1])
+  
+  content((2, -0.5), text(11pt)[Rank decomposition: width = 1])
+  content((2, -1), text(10pt, green)[State space: $2^1 = 2$ at cut])
+}),
+caption: [Rank decomposition exploits parity structure. The critical cut has rank 1, giving only 2 equivalence classes.]
+)
+
+==== Step 4: Dynamic programming computation
+
+Let's trace through the DP algorithm on the rank decomposition tree.
+
+*Notation:* State $(bold(b), "count")$ where $bold(b) in bb(F)_2^r$ is the boundary vector.
+
+*Phase 1: Initialize leaves*
+
+- *Leaf $x_1$:* 
+  - State $(0, 1)$: $x_1 = 0$, count = 1
+  - State $(1, 1)$: $x_1 = 1$, count = 1
+
+- *Leaf $x_2$:*
+  - State $(0, 1)$: $x_2 = 0$, count = 1
+  - State $(1, 1)$: $x_2 = 1$, count = 1
+
+- *Leaf $x_3$:*
+  - State $(0, 1)$: $x_3 = 0$, count = 1
+  - State $(1, 1)$: $x_3 = 1$, count = 1
+
+*Phase 2: Merge $x_1$ and $x_2$ → Node $n_1$*
+
+The boundary vector represents the *parity* transmitted across the cut.
+
+For the partition $A = {x_1, x_2}$, $B = {x_3, "clauses"}$:
+- Boundary: $bold(b) = x_1 xor x_2 in bb(F)_2^1$
+
+Merge table:
+#table(
+  columns: (auto, auto, auto, auto),
+  align: center,
+  [$x_1$], [$x_2$], [Boundary $x_1 xor x_2$], [Count],
+  [0], [0], [0], [1],
+  [0], [1], [1], [1],
+  [1], [0], [1], [1],
+  [1], [1], [0], [1],
+)
+
+*Aggregated state at $n_1$:*
+- State $(0, 2)$: Parity = 0, count = 2 (from $(0,0)$ and $(1,1)$)
+- State $(1, 2)$: Parity = 1, count = 2 (from $(0,1)$ and $(1,0)$)
+
+*Key observation:* We reduced 4 configurations to 2 equivalence classes!
+
+*Phase 3: Merge $n_1$ and $x_3$ → Root*
+
+Now combine the left subtree (parity from $x_1 xor x_2$) with $x_3$.
+
+The constraint $x_1 xor x_2 xor x_3 = 0$ means we need total parity = 0.
+
+#table(
+  columns: (auto, auto, auto, auto),
+  align: center,
+  [Left parity], [$x_3$], [Total parity], [Count],
+  [0], [0], [0], [$2 times 1 = 2$],
+  [0], [1], [1], [$2 times 1 = 2$],
+  [1], [0], [1], [$2 times 1 = 2$],
+  [1], [1], [0], [$2 times 1 = 2$],
+)
+
+*Final answer at root:*
+- Valid assignments (total parity = 0): $2 + 2 = 4$ ✓
+
+==== Step 5: Comparison summary
+
+#table(
+  columns: (auto, auto, auto),
+  align: left,
+  [*Approach*], [*State Space Size*], [*Explanation*],
+  [Naive enumeration], [$2^3 = 8$], [Check all assignments],
+  [Tree decomposition], [$2^2 = 4$], [Track 2 variables at separator],
+  [Rank decomposition], [$2^1 = 2$], [Track 1 parity bit at cut],
+)
+
+*Complexity scaling for $n$ variables:*
+- Naive: $O(2^n)$
+- Tree width: $O(2^(n-1))$ (still exponential)
+- Rank width: $O(n dot 2^1) = O(n)$ (linear!)
+
+
+*Why the exponential gap?*
+Tree width counts *structural connectivity* (edges in graph).
+Rank width counts *algebraic degrees of freedom* (linear independence over $bb(F)_2$).
+
+For XOR constraints, all interactions are *linearly dependent* (parity constraints), so rank width = 1 regardless of formula size, while tree width grows with the number of variables.
 
 *Key insight:* For formulas encoding *linear algebraic structure* (systems of linear equations over $bb(F)_2$), rank width can be exponentially better than tree width:
 
@@ -579,3 +795,40 @@ This matches the complexity of contracting the corresponding tensor network with
 #theorem([Efficiency of Rank Width DP])[
   The \#SAT problem for a formula with rank width $r$ can be solved in time $O(n dot 2^(3r))$. This is polynomial for constant $r$, providing a tractable approach for structured instances like XOR formulas where tree width fails.
 ]
+
+// == Sample of algorithmic
+// #algorithm({
+//   import algorithmic: *
+//   Function("Treeverse", ([$S$], [$overline(s_phi.alt)$], [$delta$], [$tau$], [$beta$], [$sigma$], [$phi.alt$]), {
+//     If([$sigma > beta$], {
+//       Assign([$delta$], [$delta - 1$])
+//       Assign([$s$], [$S[beta] quad$ CommentInline([Load initial state $s_beta$])])
+//       For([$j = beta, beta+1, dots, sigma-1$], {
+//         Assign([$s_(j+1)$], [$f_j(s_j) quad$ CommentInline([Compute $s_sigma$])])
+//       })
+//       Assign([$S[sigma]$], [$s_sigma$])
+//     })
+//     Comment([Recursively call Treeverse with optimal split point $kappa$ (binomial distribution)])
+//     While([$tau > 0$ and $kappa = "mid"(delta, tau, sigma, phi.alt) < phi.alt$], {
+//       Assign([$overline(s_kappa)$], [treeverse($S$, $overline(s_phi.alt)$, $delta$, $tau$, $sigma$, $kappa$, $phi.alt$)])
+//       Assign([$tau$], [$tau - 1$])
+//       Assign([$phi.alt$], [$kappa$])
+//     })
+//     Assign([$overline(s_sigma)$], [$overline(f_sigma)(overline(s_(sigma+1)), s_sigma) quad$ CommentInline([Use existing $s_sigma$ and $overline(s_phi.alt)$ to return gradient])])
+    
+//     If([$sigma > beta$], {
+//       Line([remove($S[sigma]$)  $quad$ CommentInline([Remove $s_sigma$ from cached state set])])
+//     })
+//     Return[$overline(s_sigma)$]
+//   })
+
+//   Function("mid", ([$delta$], [$tau$], [$sigma$], [$phi.alt$]), {
+//     Comment([Select the binomial distribution split point])
+//     Assign([$kappa$], [$ceil((delta sigma + tau phi.alt)/(tau+delta))$])
+//     If([$kappa >= phi.alt$ and $delta > 0$], {
+//       Assign([$kappa$], [max($sigma+1$, $phi.alt-1$)])
+//     })
+//     Return[$kappa$]
+//   })
+// })
+
