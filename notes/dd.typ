@@ -68,239 +68,9 @@ $ r w(G) = min_T max_(e in T) op("rank")_(bb(F)_2) (M_A) $
 
 // If we think of the adjacency matrix as a tensor, the cut matrix is exactly what we get when we *partition the indices* and reshape into a matrix. The rank over $bb(F)_2$ measures how "entangled" the two sides are --- analogous to the bond dimension in tensor network terminology.
 
-= A Concrete \#SAT Example
+= A Concrete \#SAT Example: Dense Formulas
 
-Consider the Boolean formula:
-$ phi = (x_1 or x_2) and (x_2 or x_3) and (not x_1 or x_3) $
-
-== Step 1: Build the Incidence Graph
-
-The *incidence graph* $I(phi)$ has:
-- *Vertices*: Variables ${x_1, x_2, x_3}$ and clauses ${C_1, C_2, C_3}$
-- *Edges*: Connect variable to clause if variable appears in clause
-
-#figure(
-  canvas(length: 1cm, {
-    import draw: *
-    
-    let var-color = rgb("#4a90d9")
-    let clause-color = rgb("#e07b53")
-    let d = 2.0
-    
-    // Variable nodes (circles)
-    for (pos, label, nm) in (((0, 0), $x_1$, "x1"), ((d, 0), $x_2$, "x2"), ((d/2, -d), $x_3$, "x3")) {
-      circle(pos, radius: 0.35, fill: var-color.lighten(70%), stroke: var-color, name: nm)
-      content(pos, text(9pt, label))
-    }
-    
-    // Clause nodes (rectangles)
-    for (pos, label, nm) in (((d/2, 0), $C_1$, "C1"), ((d, -d/2), $C_2$, "C2"), ((0, -d/2), $C_3$, "C3")) {
-      rect((pos.at(0) - 0.35, pos.at(1) - 0.25), (pos.at(0) + 0.35, pos.at(1) + 0.25), 
-           fill: clause-color.lighten(70%), stroke: clause-color, name: nm)
-      content(pos, text(9pt, label))
-    }
-    
-    // Edges
-    set-style(stroke: gray + 0.8pt)
-    line("x1", "C1")
-    line("C1", "x2")
-    line("x2", "C2")
-    line("C2", "x3")
-    line("x3", "C3")
-    line("C3", "x1")
-  }),
-  caption: [Incidence graph for $phi = (x_1 or x_2) and (x_2 or x_3) and (not x_1 or x_3)$. Variables (blue circles) connect to clauses (orange rectangles) they appear in.],
-) <fig:incidence>
-
-== Step 2: Build the Rank Decomposition
-
-We build a binary tree with leaves corresponding to vertices of $I(phi)$:
-
-#figure(
-  canvas(length: 1cm, {
-    import draw: *
-    
-    let node-fill = rgb("#f0f0f0")
-    let leaf-fill = rgb("#e8f4e8")
-    let cut-color = rgb("#e74c3c")
-    let dx = 1.8
-    let dy = 1.2
-    
-    // Level 0 (root)
-    circle((0, 0), radius: 0.2, fill: node-fill, stroke: black + 0.6pt, name: "root")
-    
-    // Level 1
-    circle((-dx, -dy), radius: 0.2, fill: node-fill, stroke: black + 0.6pt, name: "L1")
-    circle((dx, -dy), radius: 0.2, fill: node-fill, stroke: black + 0.6pt, name: "R1")
-    
-    // Level 2 - leaves and internal nodes
-    circle((-dx - dx/2, -2*dy), radius: 0.3, fill: leaf-fill, stroke: black + 0.6pt, name: "n-x1")
-    content((-dx - dx/2, -2*dy), text(8pt, $x_1$))
-    
-    circle((-dx + dx/2, -2*dy), radius: 0.2, fill: node-fill, stroke: black + 0.6pt, name: "L2")
-    
-    circle((dx - dx/2, -2*dy), radius: 0.2, fill: node-fill, stroke: black + 0.6pt, name: "R2")
-    
-    circle((dx + dx/2, -2*dy), radius: 0.3, fill: leaf-fill, stroke: black + 0.6pt, name: "n-x3")
-    content((dx + dx/2, -2*dy), text(8pt, $x_3$))
-    
-    // Level 3 - all leaves
-    circle((-dx + dx/2 - 0.6, -3*dy), radius: 0.3, fill: leaf-fill, stroke: black + 0.6pt, name: "n-C1")
-    content((-dx + dx/2 - 0.6, -3*dy), text(8pt, $C_1$))
-    
-    circle((-dx + dx/2 + 0.6, -3*dy), radius: 0.3, fill: leaf-fill, stroke: black + 0.6pt, name: "n-C3")
-    content((-dx + dx/2 + 0.6, -3*dy), text(8pt, $C_3$))
-    
-    circle((dx - dx/2 - 0.6, -3*dy), radius: 0.3, fill: leaf-fill, stroke: black + 0.6pt, name: "n-x2")
-    content((dx - dx/2 - 0.6, -3*dy), text(8pt, $x_2$))
-    
-    circle((dx - dx/2 + 0.6, -3*dy), radius: 0.3, fill: leaf-fill, stroke: black + 0.6pt, name: "n-C2")
-    content((dx - dx/2 + 0.6, -3*dy), text(8pt, $C_2$))
-    
-    // Edges
-    set-style(stroke: black + 0.6pt)
-    line("root", "L1")
-    line("root", "R1")
-    line("L1", "n-x1")
-    line("L1", "L2")
-    line("R1", "R2")
-    line("R1", "n-x3")
-    line("L2", "n-C1")
-    line("L2", "n-C3")
-    line("R2", "n-x2")
-    line("R2", "n-C2")
-    
-    // Cut line (dashed red)
-    line((0, 0.5), (0, -3.8*dy), stroke: (paint: cut-color, dash: "dashed", thickness: 1.5pt))
-    
-    // Labels for partitions
-    content((-dx, -4.2*dy), text(8pt, cut-color)[$A = {x_1, C_1, C_3}$])
-    content((dx, -4.2*dy), text(8pt, cut-color)[$overline(A) = {x_2, C_2, x_3}$])
-  }),
-  caption: [A rank decomposition for the incidence graph. Leaves (green) correspond to vertices. The dashed red line shows the main cut partitioning into $A$ and $overline(A)$.],
-) <fig:rank-decomp>
-
-== Step 3: Compute Cut Matrices
-
-For the main cut $A = {x_1, C_1, C_3}$ vs $overline(A) = {x_2, C_2, x_3}$:
-
-#v(20pt)
-#figure(
-  table(
-    columns: 4,
-    stroke: 0.5pt,
-    [], [$x_2$], [$C_2$], [$x_3$],
-    [$x_1$], [0], [0], [0],
-    [$C_1$], [1], [0], [0],
-    [$C_3$], [0], [0], [1],
-  ),
-  caption: [Cut matrix $M_A$ for partition $A = {x_1, C_1, C_3}$.],
-) <tab:cut-matrix>
-
-The $bb(F)_2$-rank of this matrix is *2* (two linearly independent rows over the binary field).
-
-== Step 4: The DP State Space
-
-Here lies the key insight connecting to tensor networks:
-
-*Treewidth-based algorithms*: The DP state tracks *all possible assignments* to variables in the separator. If the separator has $k$ variables, we have $2^k$ states.
-
-*Rank-width-based algorithms*: The DP state tracks *equivalence classes* of partial assignments. Two partial assignments are equivalent if they produce the same "signature" on the boundary.
-
-=== Understanding Equivalence Classes
-
-Consider the cut $A = {x_1, C_1, C_3}$ vs $overline(A) = {x_2, C_2, x_3}$. The edges crossing this cut are:
-- $(C_1, x_2)$: clause $C_1 = (x_1 or x_2)$ connects to $x_2$
-- $(C_3, x_3)$: clause $C_3 = (not x_1 or x_3)$ connects to $x_3$
-
-For a partial assignment to $x_1$ (the only variable in $A$), we ask: _what information does the other side need?_
-
-#v(20pt)
-#figure(
-  table(
-    columns: 4,
-    stroke: 0.5pt,
-    table.header([$x_1$], [Status of $C_1$], [Status of $C_3$], [*Signature*]),
-    [0], [needs $x_2 = 1$], [satisfied], [$(0, 1)$],
-    [1], [satisfied], [needs $x_3 = 1$], [$(1, 0)$],
-  ),
-  caption: [The "signature" encodes which boundary constraints remain.],
-) <tab:equiv>
-
-The *signature* is a vector in $bb(F)_2^r$ where $r = op("rank")(M_A) = 2$. It encodes:
-- For each crossing edge, whether the clause on side $A$ is already satisfied (1) or still needs help from $overline(A)$ (0).
-
-Two partial assignments are *equivalent* if they produce the same signature. In this example, $x_1 = 0$ and $x_1 = 1$ produce different signatures, so we have 2 equivalence classes.
-
-=== SVD Perspective (Tensor Network View)
-
-For tensor network practitioners, the rank decomposition is best understood via SVD. Consider the cut matrix:
-$ M_A = mat(0, 0, 0; 1, 0, 0; 0, 0, 1) $
-with rows ${x_1, C_1, C_3}$ and columns ${x_2, C_2, x_3}$.
-
-*Over $bb(R)$*, we can compute the SVD: $M_A = U Sigma V^top$ where $op("rank")(M_A) = 2$. This factorizes as:
-$ M_A = underbrace(mat(0, 0; 1, 0; 0, 1), U') dot underbrace(mat(1, 0, 0; 0, 0, 1), V'^top) $
-
-*The key insight*: Any vector $bold(v) in bb(F)_2^(|A|)$ indexing rows of $M_A$ produces a "boundary effect" $bold(v)^top M_A in bb(F)_2^(|overline(A)|)$. But since $op("rank")(M_A) = r$, this effect factors through an $r$-dimensional space:
-$ bold(v)^top M_A = (bold(v)^top U') dot V'^top $
-
-The *equivalence class* of $bold(v)$ is determined by $bold(v)^top U' in bb(F)_2^r$ — a vector of dimension $r$, not $|A|}$.
-
-#figure(
-  canvas(length: 1cm, {
-    import draw: *
-    
-    let box-fill = rgb("#f8f8f8")
-    
-    // Left: high-dimensional space
-    rect((-0.5, -1), (1.5, 1), fill: box-fill, stroke: gray)
-    content((0.5, 1.3), text(9pt)[$bb(F)_2^(|A|)$])
-    content((0.5, 0), text(8pt)[all partial\ assignments])
-    
-    // Arrow to middle
-    line((1.7, 0), (2.8, 0), mark: (end: "stealth"), stroke: black + 0.8pt)
-    content((2.25, 0.4), text(8pt)[$times U'$])
-    
-    // Middle: low-dimensional space
-    rect((3, -0.7), (4.5, 0.7), fill: rgb("#e8f4e8"), stroke: rgb("#4a4"))
-    content((3.75, 1.0), text(9pt)[$bb(F)_2^r$])
-    content((3.75, 0), text(8pt)[equiv.\ classes])
-    
-    // Arrow to right
-    line((4.7, 0), (5.8, 0), mark: (end: "stealth"), stroke: black + 0.8pt)
-    content((5.25, 0.4), text(8pt)[$times V'^top$])
-    
-    // Right: boundary effect
-    rect((6, -1), (8, 1), fill: box-fill, stroke: gray)
-    content((7, 1.3), text(9pt)[$bb(F)_2^(|overline(A)|)$])
-    content((7, 0), text(8pt)[boundary\ effects])
-  }),
-  caption: [SVD factorization: partial assignments map to equivalence classes (dimension $r$), which then determine boundary effects. The bottleneck has dimension $r = op("rank")(M_A)$.],
-) <fig:svd>
-
-#v(20pt)
-
-The number of distinct equivalence classes is at most $2^(op("rank")(M_A))$, not $2^(|A|)$.
-
-== Step 5: The Tensor Network View
-
-Think of each clause as a tensor:
-- $C_1 = (x_1 or x_2)$: A tensor $T_(C_1) [x_1, x_2] in {0, 1}$
-- $C_2 = (x_2 or x_3)$: A tensor $T_(C_2) [x_2, x_3] in {0, 1}$
-- $C_3 = (not x_1 or x_3)$: A tensor $T_(C_3) [x_1, x_3] in {0, 1}$
-
-The \#SAT problem becomes a *tensor network contraction*:
-$ \#op("SAT")(phi) = sum_(x_1, x_2, x_3 in {0,1}) T_(C_1) [x_1, x_2] dot T_(C_2) [x_2, x_3] dot T_(C_3) [x_1, x_3] $
-
-== The Rank-Width Advantage
-
-When contracting across a cut, we don't need to track all $2^k$ boundary configurations. We only need $2^(r w)$ *equivalence classes*.
-
-Over $bb(F)_2$, the equivalence is determined by *linear combinations* of edge indicators. If the cut matrix has rank $r$, there are only $2^r$ distinct "boundary behaviors."
-
-= A Better Example: Dense Formulas
-
-The previous example had treewidth $approx$ rank-width $approx 2$, showing no advantage. Let's see a case where rank-width is *exponentially smaller*.
+To see the power of rank-width, we need a formula where rank-width is *much smaller* than treewidth. This happens with *dense* formulas where every variable appears in every clause.
 
 == A Dense SAT Formula
 
@@ -373,6 +143,7 @@ $ M = vec(1, 1, 1, 1) dot mat(1, 1, 1, 1) = bold(1) dot bold(1)^top $
 == The Dramatic Speedup
 
 For the dense formula $psi$ with $n$ variables and $n$ clauses:
+#v(20pt)
 
 #figure(
   table(
@@ -387,13 +158,267 @@ For the dense formula $psi$ with $n$ variables and $n$ clauses:
 
 The rank-width algorithm only needs to track *2 equivalence classes* instead of $2^(100)$ configurations!
 
-== Why Does This Work?
+== Why Does This Work? (SVD Perspective)
 
-For any cut in $K_(n,n)$, consider the cut matrix. Since all entries are 1, any partial assignment produces a boundary effect that is either:
-- The all-zeros vector (if an even number of edges cross), or
-- The all-ones vector (if an odd number of edges cross)
+For tensor network practitioners, this is best understood via *SVD/low-rank factorization*.
 
-There are only *2 equivalence classes* over $bb(F)_2$, regardless of how many vertices are on each side.
+The biadjacency matrix $M = bold(1) bold(1)^top$ factors as:
+$ M = underbrace(vec(1, 1, 1, 1), U) dot underbrace(mat(1, 1, 1, 1), V^top) $
+
+For any cut partitioning variables into $A$ and $overline(A)$, a partial assignment $bold(v) in bb(F)_2^(|A|)$ produces a boundary effect:
+$ bold(v)^top M = (bold(v)^top bold(1)) dot bold(1)^top $
+
+The term $(bold(v)^top bold(1)) in bb(F)_2$ is just the *parity* (sum mod 2) of the assignment bits. This gives only 2 possible values:
+- Parity 0 $arrow.r$ boundary effect $= bold(0)$
+- Parity 1 $arrow.r$ boundary effect $= bold(1)$
+
+#figure(
+  canvas(length: 1cm, {
+    import draw: *
+    
+    let box-fill = rgb("#f8f8f8")
+    
+    // Left: high-dimensional space
+    rect((-0.5, -1), (1.5, 1), fill: box-fill, stroke: gray)
+    content((0.5, 1.3), text(9pt)[$bb(F)_2^n$])
+    content((0.5, 0), text(8pt)[$2^n$ partial\ assignments])
+    
+    // Arrow to middle
+    line((1.7, 0), (2.8, 0), mark: (end: "stealth"), stroke: black + 0.8pt)
+    content((2.25, 0.4), text(8pt)[$times bold(1)$])
+    
+    // Middle: low-dimensional space
+    rect((3, -0.5), (4.5, 0.5), fill: rgb("#e8f4e8"), stroke: rgb("#4a4"))
+    content((3.75, 0.8), text(9pt)[$bb(F)_2^1$])
+    content((3.75, 0), text(8pt)[2 classes])
+    
+    // Arrow to right
+    line((4.7, 0), (5.8, 0), mark: (end: "stealth"), stroke: black + 0.8pt)
+    content((5.25, 0.4), text(8pt)[$times bold(1)^top$])
+    
+    // Right: boundary effect
+    rect((6, -1), (8, 1), fill: box-fill, stroke: gray)
+    content((7, 1.3), text(9pt)[$bb(F)_2^n$])
+    content((7, 0), text(8pt)[boundary\ effects])
+  }),
+  caption: [SVD bottleneck: $2^n$ assignments compress to just 2 equivalence classes through the rank-1 factorization.],
+) <fig:svd>
+
+#v(20pt)
+This is exactly the *bond dimension* in tensor networks: when you SVD a matrix of rank $r$, the bond dimension is $r$. Here $r = 1$, so we only need to track $2^1 = 2$ states instead of $2^n$.
+
+== Connecting to Counting: Full DP Walkthrough
+
+Let's trace through the algorithm step-by-step on a simpler instance to see actual numbers.
+
+=== Setup: A 2×2 Dense Formula
+
+Consider $phi = C_1 and C_2$ with variables $x_1, x_2$ where:
+- $C_1 = (x_1 or x_2)$ — satisfied unless both false
+- $C_2 = (not x_1 or not x_2)$ — satisfied unless both true
+
+The incidence graph is $K_(2,2)$ (every variable in every clause).
+
+#figure(
+  canvas(length: 1cm, {
+    import draw: *
+    let var-color = rgb("#4a90d9")
+    let clause-color = rgb("#e07b53")
+    
+    circle((0, 0), radius: 0.3, fill: var-color.lighten(70%), stroke: var-color, name: "x1")
+    content((0, 0), text(8pt, $x_1$))
+    circle((0, -1.2), radius: 0.3, fill: var-color.lighten(70%), stroke: var-color, name: "x2")
+    content((0, -1.2), text(8pt, $x_2$))
+    
+    rect((1.7, -0.2), (2.3, 0.2), fill: clause-color.lighten(70%), stroke: clause-color, name: "C1")
+    content((2, 0), text(8pt, $C_1$))
+    rect((1.7, -1.4), (2.3, -1.0), fill: clause-color.lighten(70%), stroke: clause-color, name: "C2")
+    content((2, -1.2), text(8pt, $C_2$))
+    
+    set-style(stroke: gray + 0.6pt)
+    line("x1", "C1")
+    line("x1", "C2")
+    line("x2", "C1")
+    line("x2", "C2")
+  }),
+  caption: [Incidence graph $K_(2,2)$ for $phi = (x_1 or x_2) and (not x_1 or not x_2)$.],
+)
+
+=== The Rank Decomposition Tree
+
+#figure(
+  canvas(length: 1cm, {
+    import draw: *
+    let node-fill = rgb("#f0f0f0")
+    let leaf-fill = rgb("#e8f4e8")
+    let cut-color = rgb("#e74c3c")
+    
+    // Root
+    circle((0, 0), radius: 0.2, fill: node-fill, stroke: black + 0.6pt, name: "root")
+    content((0, 0.5), text(8pt)[root])
+    
+    // Level 1
+    circle((-1.5, -1.2), radius: 0.2, fill: node-fill, stroke: black + 0.6pt, name: "L")
+    circle((1.5, -1.2), radius: 0.2, fill: node-fill, stroke: black + 0.6pt, name: "R")
+    
+    // Leaves
+    circle((-2.2, -2.4), radius: 0.3, fill: leaf-fill, stroke: black + 0.6pt, name: "x1")
+    content((-2.2, -2.4), text(8pt, $x_1$))
+    circle((-0.8, -2.4), radius: 0.3, fill: leaf-fill, stroke: black + 0.6pt, name: "C1")
+    content((-0.8, -2.4), text(8pt, $C_1$))
+    circle((0.8, -2.4), radius: 0.3, fill: leaf-fill, stroke: black + 0.6pt, name: "x2")
+    content((0.8, -2.4), text(8pt, $x_2$))
+    circle((2.2, -2.4), radius: 0.3, fill: leaf-fill, stroke: black + 0.6pt, name: "C2")
+    content((2.2, -2.4), text(8pt, $C_2$))
+    
+    // Edges
+    line("root", "L")
+    line("root", "R")
+    line("L", "x1")
+    line("L", "C1")
+    line("R", "x2")
+    line("R", "C2")
+    
+    // Cut line
+    line((0, 0.3), (0, -2.7), stroke: (paint: cut-color, dash: "dashed", thickness: 1.5pt))
+    content((-1.5, -3), text(8pt, cut-color)[$A = {x_1, C_1}$])
+    content((1.5, -3), text(8pt, cut-color)[$overline(A) = {x_2, C_2}$])
+  }),
+  caption: [Rank decomposition with cut at the root edge.],
+)
+
+=== Step 1: Compute Cut Matrix and Rank
+
+The cut matrix $M_A$ for partition $A = {x_1, C_1}$ vs $overline(A) = {x_2, C_2}$:
+
+#v(20pt)
+#figure(
+  table(
+    columns: 3,
+    stroke: 0.5pt,
+    [], [$x_2$], [$C_2$],
+    [$x_1$], [0], [1],
+    [$C_1$], [1], [0],
+  ),
+  caption: [Cut matrix $M_A$. Entry is 1 if edge exists in incidence graph.],
+)
+
+Over $bb(F)_2$: $op("rank")(M_A) = 2$ (rows are linearly independent). So we have $2^2 = 4$ equivalence classes.
+
+_Note: This small example doesn't show exponential savings. The key is that for $K_(n,n)$, rank stays 1 while cut size grows to $n$._
+
+=== Step 2: DP from Leaves to Root
+
+The DP computes a table $T_v [c]$ at each node $v$, indexed by equivalence class $c$.
+
+*Leaf nodes* (variables $x_1, x_2$): For each assignment $x_i in {0, 1}$, compute its signature.
+
+#v(20pt)
+#figure(
+  table(
+    columns: 3,
+    stroke: 0.5pt,
+    table.header([Node], [Assignment], [Table $T$]),
+    [$x_1$], [$x_1 = 0$], [$T_(x_1)[sigma_0] = 1$],
+    [], [$x_1 = 1$], [$T_(x_1)[sigma_1] = 1$],
+    [$x_2$], [$x_2 = 0$], [$T_(x_2)[sigma'_0] = 1$],
+    [], [$x_2 = 1$], [$T_(x_2)[sigma'_1] = 1$],
+  ),
+  caption: [Leaf tables: count 1 for each possible assignment.],
+)
+
+*Leaf nodes* (clauses $C_1, C_2$): Clauses contribute constraint information.
+
+*Internal nodes*: Merge child tables by summing over compatible signatures.
+
+=== Step 3: Detailed Merge at Root
+
+At the root, we combine left subtree (covering $x_1, C_1$) and right subtree (covering $x_2, C_2$).
+
+*Left subtree result* $T_L$: counts of $(x_1)$ assignments that satisfy $C_1$'s constraints
+
+#v(20pt)
+#figure(
+  table(
+    columns: 3,
+    stroke: 0.5pt,
+    table.header([$x_1$], [Status of $C_1$], [Count]),
+    [0], [$C_1$ needs $x_2 = 1$], [1],
+    [1], [$C_1$ satisfied], [1],
+  ),
+  caption: [Left subtree: how $x_1$ affects $C_1 = (x_1 or x_2)$.],
+)
+
+*Right subtree result* $T_R$: counts of $(x_2)$ assignments that satisfy $C_2$'s constraints
+
+#v(20pt)
+#figure(
+  table(
+    columns: 3,
+    stroke: 0.5pt,
+    table.header([$x_2$], [Status of $C_2$], [Count]),
+    [0], [$C_2$ satisfied], [1],
+    [1], [$C_2$ needs $x_1 = 0$], [1],
+  ),
+  caption: [Right subtree: how $x_2$ affects $C_2 = (not x_1 or not x_2)$.],
+)
+
+=== Step 4: Final Contraction
+
+Now we contract $T_L$ and $T_R$, checking which combinations satisfy *both* clauses:
+
+#v(20pt)
+#figure(
+  table(
+    columns: 5,
+    stroke: 0.5pt,
+    table.header([$x_1$], [$x_2$], [$C_1$ ok?], [$C_2$ ok?], [Valid?]),
+    [0], [0], [needs $x_2=1$ #sym.times], [#sym.checkmark], [#sym.times],
+    [0], [1], [#sym.checkmark], [#sym.checkmark], [#sym.checkmark],
+    [1], [0], [#sym.checkmark], [#sym.checkmark], [#sym.checkmark],
+    [1], [1], [#sym.checkmark], [needs $x_1=0$ #sym.times], [#sym.times],
+  ),
+  caption: [Compatibility check: only 2 assignments satisfy both clauses.],
+)
+
+*Result*: $\#op("SAT")(phi) = 2$
+
+=== The Tensor Network View
+
+The computation is a tensor contraction:
+
+$ \#op("SAT") = sum_c T_L [c] dot T_R [c] $
+
+#figure(
+  canvas(length: 1cm, {
+    import draw: *
+    
+    let tensor-fill = rgb("#a8d5ba")
+    
+    // Left tensor
+    circle((-1.5, 0), radius: 0.5, fill: tensor-fill, stroke: black, name: "L")
+    content((-1.5, 0), text(10pt)[$T_L$])
+    
+    // Bond (equivalence class index)
+    line("L", (0.5, 0), stroke: red + 1.5pt, name: "bond")
+    content((0, 0.4), text(9pt, red)[bond dim $= 2^r$])
+    
+    // Right tensor
+    circle((1.5, 0), radius: 0.5, fill: tensor-fill, stroke: black, name: "R")
+    content((1.5, 0), text(10pt)[$T_R$])
+    
+    // External legs (summed over)
+    line((-1.5, 0.5), (-1.5, 1.2), stroke: gray)
+    content((-1.5, 1.5), text(8pt, gray)[$x_1$])
+    
+    line((1.5, 0.5), (1.5, 1.2), stroke: gray)
+    content((1.5, 1.5), text(8pt, gray)[$x_2$])
+  }),
+  caption: [Tensor network for \#SAT. Bond dimension $= 2^(op("rank")(M_A))$. For $K_(n,n)$, this is $2^1 = 2$ regardless of $n$!],
+) <fig:tn-count>
+
+#v(20pt)
+*Key insight*: For $K_(n,n)$ with $n$ variables per side, the bond dimension is $2^1 = 2$, not $2^n$. This is the exponential saving from rank-width!
 
 = When Does Rank-Width Help? (Summary)
 
