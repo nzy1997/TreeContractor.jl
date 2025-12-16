@@ -383,6 +383,160 @@ Now we contract $T_L$ and $T_R$, checking which combinations satisfy *both* clau
 
 *Result*: $\#op("SAT")(phi) = 2$
 
+=== Where's the Rank-Width Advantage?
+
+The 2×2 example above doesn't show compression because $op("rank")(M_A) = 2$ equals the cut size. Let's see a *larger* example where rank-width truly helps.
+
+==== A 4×4 Example with Rank-1 Compression
+
+Consider $K_(4,4)$: 4 variables ${x_1, x_2, x_3, x_4}$ on left, 4 clauses on right, every variable in every clause.
+
+*Cut matrix* (all ones):
+$ M = mat(1,1,1,1; 1,1,1,1; 1,1,1,1; 1,1,1,1) $
+
+*SVD over $bb(F)_2$*: $M = bold(1) dot bold(1)^top$ has *rank 1*.
+
+*The key compression*: Instead of tracking $2^4 = 16$ partial assignments to ${x_1, x_2, x_3, x_4}$, we only track *2 equivalence classes* based on parity:
+
+#v(10pt)
+#figure(
+  table(
+    columns: 3,
+    stroke: 0.5pt,
+    table.header([Equivalence Class], [Parity $= sum x_i mod 2$], [Assignments]),
+    [$c_0$ (even)], [0], [$(0000), (0011), (0101), (0110), (1001), (1010), (1100), (1111)$],
+    [$c_1$ (odd)], [1], [$(0001), (0010), (0100), (1000), (0111), (1011), (1101), (1110)$],
+  ),
+  caption: [16 assignments compressed into 2 equivalence classes by parity.],
+)
+
+*Why parity? Why $bb(F)_2$?* This deserves careful explanation.
+
+==== The Role of $bb(F)_2$: Defining Equivalence, Not Counting
+
+The counting is still over $bb(Z)$ (integers). But $bb(F)_2$ defines *which assignments are equivalent*.
+
+*Definition of equivalence*: Two partial assignments $bold(x)$ and $bold(x)'$ are equivalent iff they produce the *same boundary effect* — i.e., they leave the same "constraints" for the other side to satisfy.
+
+==== What Does $bold(x)^top M$ Mean?
+
+Let's unpack this with a concrete example. Suppose the cut separates:
+- Left side $A$: variables ${x_1, x_2}$  
+- Right side $overline(A)$: clauses ${C_1, C_2}$
+
+The cut matrix $M$ records which variable appears in which clause:
+$ M = mat(M_(x_1, C_1), M_(x_1, C_2); M_(x_2, C_1), M_(x_2, C_2)) $
+
+For $K_(n,n)$ (every variable in every clause): $M = mat(1,1; 1,1)$
+
+Now, $bold(x) = (x_1, x_2)$ is a partial assignment. The product $bold(x)^top M$ computes:
+$ bold(x)^top M = mat(x_1, x_2) mat(1,1; 1,1) = mat(x_1 + x_2, x_1 + x_2) $
+
+*Interpretation over $bb(F)_2$*: The $j$-th entry $(bold(x)^top M)_j$ counts (mod 2) *how many assigned variables appear in clause $C_j$*.
+
+#v(20pt)
+#figure(
+  table(
+    columns: 4,
+    stroke: 0.5pt,
+    table.header([$(x_1, x_2)$], [$bold(x)^top M$ over $bb(F)_2$], [Meaning], [Class]),
+    [$(0, 0)$], [$(0, 0)$], [0 true vars in each clause], [$c_0$],
+    [$(0, 1)$], [$(1, 1)$], [1 true var in each clause], [$c_1$],
+    [$(1, 0)$], [$(1, 1)$], [1 true var in each clause], [$c_1$],
+    [$(1, 1)$], [$(0, 0)$], [2 true vars $equiv$ 0 mod 2], [$c_0$],
+  ),
+  caption: [$bold(x)^top M$ computes how the partial assignment affects boundary clauses.],
+)
+
+*Why this determines equivalence*: Assignments $(0,1)$ and $(1,0)$ both give boundary effect $(1,1)$. From the right side's perspective, *they look identical* — both have "1 true variable (mod 2)" in each clause. So they belong to the same equivalence class.
+
+For SAT, a clause is either satisfied (1) or needs help (0). This is inherently *binary*. The boundary effect is a vector in ${0,1}^(|"boundary clauses"|)$.
+
+*Key observation*: The boundary effect of $bold(x)$ on clauses across the cut is determined by:
+$ "boundary effect" = bold(x)^top M mod 2 $
+where $M$ is the cut matrix (which variables appear in which clauses).
+
+==== Why Parity for $K_(n,n)$?
+
+For the all-ones matrix $M = bold(1) bold(1)^top$:
+
+$ bold(x)^top M = bold(x)^top (bold(1) bold(1)^top) = underbrace((bold(x)^top bold(1)), "parity") dot bold(1)^top $
+
+The boundary effect is completely determined by $bold(x)^top bold(1) = sum_i x_i mod 2$ — the *parity*.
+
+*Two assignments with the same parity produce identical boundary effects*, so they are equivalent for counting purposes.
+
+==== Separating Equivalence from Counting
+
+#figure(
+  canvas(length: 1cm, {
+    import draw: *
+    
+    let box-fill = rgb("#f8f8f8")
+    
+    // Left box: F_2 structure
+    rect((-0.5, -1.5), (3, 1.5), fill: rgb("#fff8e8"), stroke: rgb("#cc9"))
+    content((1.25, 1.8), text(9pt, rgb("#996"))[*$bb(F)_2$ world*])
+    content((1.25, 0.8), text(8pt)[Define equivalence])
+    content((1.25, 0.3), text(8pt)[via boundary effect])
+    content((1.25, -0.3), text(8pt)[$bold(x) tilde bold(x)' <==> bold(x)^top M = bold(x)'^top M$])
+    content((1.25, -1.0), text(8pt)[Number of classes $= 2^(op("rank")(M))$])
+    
+    // Arrow
+    line((3.2, 0), (4.3, 0), mark: (end: "stealth"), stroke: black + 0.8pt)
+    
+    // Right box: Z structure  
+    rect((4.5, -1.5), (8, 1.5), fill: rgb("#e8f8e8"), stroke: rgb("#9c9"))
+    content((6.25, 1.8), text(9pt, rgb("#696"))[*$bb(Z)$ world*])
+    content((6.25, 0.8), text(8pt)[Count assignments])
+    content((6.25, 0.3), text(8pt)[in each class])
+    content((6.25, -0.3), text(8pt)[$|c_0| = 8, |c_1| = 8$])
+    content((6.25, -1.0), text(8pt)[Final: $sum_c |c| dot g(c)$])
+  }),
+  caption: [$bb(F)_2$ defines equivalence classes; $bb(Z)$ does the counting.],
+)
+
+*Summary*:
+- $bb(F)_2$ rank $arrow.r$ number of equivalence classes (exponentially small)
+- $bb(Z)$ counting $arrow.r$ how many assignments per class, final answer
+
+==== Counting with Compressed States
+
+The DP now works with just 2 states:
+
+#v(10pt)
+#figure(
+  table(
+    columns: 3,
+    stroke: 0.5pt,
+    table.header([Class], [Count of assignments], [Signature]),
+    [$c_0$], [$|c_0| = 8$], [even parity],
+    [$c_1$], [$|c_1| = 8$], [odd parity],
+  ),
+  caption: [Compressed DP table: 2 entries instead of 16.],
+)
+
+When we contract with the right side (clauses), we compute:
+$ \#op("SAT") = |c_0| dot g(c_0) + |c_1| dot g(c_1) = 8 dot g(c_0) + 8 dot g(c_1) $
+
+where $g(c_i)$ counts how many clause configurations are compatible with parity class $c_i$.
+
+==== The Exponential Savings
+
+#figure(
+  table(
+    columns: 4,
+    stroke: 0.5pt,
+    table.header([$n$], [Naive DP states], [Rank-width DP states], [Compression]),
+    [4], [$2^4 = 16$], [2], [$8 times$],
+    [10], [$2^(10) = 1024$], [2], [$512 times$],
+    [100], [$2^(100) approx 10^(30)$], [2], [$10^(30) times$],
+  ),
+  caption: [For $K_(n,n)$, rank-width gives exponential compression.],
+)
+
+*This is the rank-width advantage*: The all-ones matrix has rank 1, so we only need $2^1 = 2$ DP states regardless of $n$. The SVD $M = bold(1) bold(1)^top$ tells us exactly what to track: the *parity*.
+
 === The Tensor Network View
 
 The computation is a tensor contraction:
