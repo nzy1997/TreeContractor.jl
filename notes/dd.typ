@@ -2,7 +2,7 @@
 #import "@preview/cetz:0.4.2": canvas, draw
 
 #show: iclr.with(
-  title: [Rank-Width for \#SAT: A Tensor Network Perspective],
+  title: [Rank-Width for \#SAT],
   authors: (
     (
       names: ([Anonymous],),
@@ -11,9 +11,9 @@
       email: "cacate0129@gmail.com",
     ),
   ),
-  keywords: ("rank-width", "SAT", "tensor networks", "treewidth"),
+  keywords: ("rank-width", "SAT", "treewidth", "parameterized algorithms"),
   abstract: [
-    We provide a pedagogical introduction to rank-width and its application to the propositional model counting problem \#SAT. We bridge the gap between rank-width and familiar concepts from tensor network theory and treewidth-based algorithms. Through a concrete example, we demonstrate how rank-width can lead to exponential speedups over treewidth-based approaches for certain graph families.
+    We provide a pedagogical introduction to rank-width and its application to the propositional model counting problem \#SAT. Through a concrete example, we demonstrate how rank-width can lead to exponential speedups over treewidth-based approaches for certain graph families.
   ],
   accepted: none,
   bibliography: none,
@@ -21,608 +21,507 @@
 
 = Introduction
 
-The paper by Ganian, Hliněný, and Obdržálek @ganian2010 provides a parameterized polynomial algorithm for \#SAT with runtime single-exponential in the _rank-width_ of a formula. This improves upon previous algorithms based on _clique-width_, since rank-width can be exponentially smaller.
+Ganian, Hliněný, and Obdržálek @ganian2010 provide a \#SAT algorithm with runtime single-exponential in the _rank-width_ of the incidence graph. The key relationship is $op("rw")(G) <= op("tw")(G) + 1$, but rank-width can be exponentially smaller for certain graph families.
 
-For practitioners familiar with tensor networks and treewidth, rank-width offers an alternative decomposition strategy that captures a fundamentally different notion of "width" --- measuring the *rank of certain matrices* rather than the size of separators.
+= Rank Decomposition and Rank-Width
 
-= Background: Treewidth vs Rank-Width
-
-#figure(
-  table(
-    columns: 3,
-    stroke: none,
-    table.hline(),
-    table.header([*Concept*], [*Treewidth*], [*Rank-Width*]),
-    table.hline(),
-    [Decomposition], [Tree decomposition (bags)], [Rank decomposition (binary tree)],
-    [Width measure], [max bag size $- 1$], [max rank of cut matrices],
-    [Algorithm complexity], [$O(2^(t w) dot n)$ for \#SAT], [$O(2^(r w) dot n)$ for \#SAT],
-    [Relationship], [$r w(G) <= t w(G) + 1$], [Can be exponentially smaller],
-    table.hline(),
-  ),
-  caption: [Comparison of treewidth and rank-width approaches.],
-) <tab:comparison>
-
-The key relationship is:
-$ r w(G) <= t w(G) + 1 $
-but rank-width can be *exponentially smaller* than treewidth for certain graph families.
-
-= Rank Decomposition
-
-== Definition
-
-A *rank decomposition* of a graph $G = (V, E)$ consists of:
-1. A *binary tree* $T$ with leaves bijecting to vertices $V$
-2. For each edge $e$ of $T$, removing $e$ partitions the leaves into two sets $A$ and $overline(A) = V without A$
-
-== The Cut Matrix
-
-For a partition $(A, overline(A))$, define the *cut matrix* $M_A$ over $bb(F)_2$ (the binary field):
-- Rows indexed by $A$, columns by $overline(A)$
-- $M_A [u, v] = 1$ if $(u, v) in E$, else $0$
-
-The *rank-width* is:
-$ r w(G) = min_T max_(e in T) op("rank")_(bb(F)_2) (M_A) $
-
-// == Tensor Network Interpretation
-
-// If we think of the adjacency matrix as a tensor, the cut matrix is exactly what we get when we *partition the indices* and reshape into a matrix. The rank over $bb(F)_2$ measures how "entangled" the two sides are --- analogous to the bond dimension in tensor network terminology.
-
-= A Concrete \#SAT Example: Dense Formulas
-
-To see the power of rank-width, we need a formula where rank-width is *much smaller* than treewidth. This happens with *dense* formulas where every variable appears in every clause.
-
-== A Dense SAT Formula
-
-Consider a formula where *every variable appears in every clause*:
-$ psi = and.big_(i=1)^4 C_i $
-where each $C_i$ contains all 4 variables $x_1, x_2, x_3, x_4$ (with various polarities).
-
-For concreteness:
-- $C_1 = (x_1 or x_2 or x_3 or x_4)$
-- $C_2 = (not x_1 or x_2 or x_3 or x_4)$  
-- $C_3 = (x_1 or not x_2 or x_3 or x_4)$
-- $C_4 = (x_1 or x_2 or not x_3 or x_4)$
-
-== The Incidence Graph is $K_(4,4)$
-
-Since every variable appears in every clause, the incidence graph is the *complete bipartite graph* $K_(4,4)$:
+A *rank decomposition* $(T, L)$ of graph $G = (V, E)$ consists of a subcubic tree $T$ and a bijection $L$ from leaves to $V$. Each edge $e in T$ induces a partition $(A_e, B_e)$ of $V$ ($B_e := V - A_e$).
 
 #figure(
   canvas(length: 1cm, {
     import draw: *
-    
-    let var-color = rgb("#4a90d9")
-    let clause-color = rgb("#e07b53")
-    
-    // Variables on left
-    for (i, label) in ((0, $x_1$), (1, $x_2$), (2, $x_3$), (3, $x_4$)) {
-      circle((0, -i * 0.9), radius: 0.3, fill: var-color.lighten(70%), stroke: var-color, name: "x" + str(i+1))
-      content((0, -i * 0.9), text(8pt, label))
-    }
-    
-    // Clauses on right
-    for (i, label) in ((0, $C_1$), (1, $C_2$), (2, $C_3$), (3, $C_4$)) {
-      rect((2.7, -i * 0.9 - 0.2), (3.3, -i * 0.9 + 0.2), fill: clause-color.lighten(70%), stroke: clause-color, name: "C" + str(i+1))
-      content((3, -i * 0.9), text(8pt, label))
-    }
-    
+    let leaf-col = rgb("#4a90d9")
+    let internal-col = rgb("#888")
+    let cut-col = rgb("#e07b53")
+    // Tree structure
+    circle((0, 0), radius: 0.2, fill: internal-col.lighten(50%), stroke: internal-col, name: "root")
+    circle((-2, -1.5), radius: 0.2, fill: internal-col.lighten(50%), stroke: internal-col, name: "i1")
+    circle((2, -1.5), radius: 0.2, fill: internal-col.lighten(50%), stroke: internal-col, name: "i2")
+    // Leaves
+    circle((-3, -3), radius: 0.3, fill: leaf-col.lighten(70%), stroke: leaf-col, name: "l1")
+    content((-3, -3), text(7pt)[$v_1$])
+    circle((-1, -3), radius: 0.3, fill: leaf-col.lighten(70%), stroke: leaf-col, name: "l2")
+    content((-1, -3), text(7pt)[$v_2$])
+    circle((1, -3), radius: 0.3, fill: leaf-col.lighten(70%), stroke: leaf-col, name: "l3")
+    content((1, -3), text(7pt)[$v_3$])
+    circle((3, -3), radius: 0.3, fill: leaf-col.lighten(70%), stroke: leaf-col, name: "l4")
+    content((3, -3), text(7pt)[$v_4$])
+    // Edges
+    line("root", "i1")
+    line("root", "i2")
+    line("i1", "l1")
+    line("i1", "l2")
+    line("i2", "l3")
+    line("i2", "l4")
+    // Cut edge highlight
+    line((-0.15, -0.15), (0.15, 0.15), stroke: cut-col + 2pt)
+    content((0.8, 0.3), text(8pt, cut-col)[cut edge $e$])
+    // Partition labels
+    content((-2, -3.8), text(8pt)[$A_e = {v_1, v_2}$])
+    content((2, -3.8), text(8pt)[$B_e = {v_3, v_4}$])
+  }),
+  caption: [A rank decomposition. Removing edge $e$ partitions the leaves into $A_e$ and $B_e$.],
+) <fig:rank-decomp>
+
+#v(10pt)
+For partition $(A, B)$, the *cut matrix* $M_A in bb(F)_2^(|A| times |B|)$ has $M_A [u,v] = 1$ iff $(u,v) in E$. The *rank-width* is:
+$ op("rw")(G) = min_((T,L)) max_(e in T) op("rank")_(bb(F)_2)(M_(A_e)) $
+
+= Neighborhood Equivalence
+
+Let $G = (V, E)$ be a graph. For any partition $(A, B)$ of $V$ and any $Y subset.eq A$, define:
+$ N_B (Y) = {v in B : exists y in Y, {y, v} in E} $
+the set of vertices in $B$ adjacent to at least one vertex in $Y$.
+
+Two subsets $Y, Y' subset.eq A$ are *neighborhood-equivalent* w.r.t. the partition $(A, B)$ if $N_B (Y) = N_B (Y')$.
+
+Note: The equivalence relation depends on the choice of partition. Each edge $e$ of the rank decomposition induces a partition $(A_e, B_e)$, and thus a different equivalence relation on subsets of $A_e$.
+
+The number of equivalence classes for partition $(A, B)$ is at most $2^(op("rank")(M_A))$, since each class corresponds to a distinct vector in the row space of $M_A$ @bui-xuan2011. This enables DP compression: instead of $2^(|A|)$ subsets, we track at most $2^(op("rw")(G))$ classes at each node.
+
+#figure(
+  canvas(length: 1cm, {
+    import draw: *
+    let inside-col = rgb("#4a90d9")
+    let boundary-col = rgb("#e07b53")
+    let class1-col = rgb("#9b59b6")  // purple for class 1
+    let class2-col = rgb("#27ae60")  // green for class 2
+    // Inside region
+    rect((-4, -2.5), (1, 2.5), fill: inside-col.lighten(90%), stroke: inside-col)
+    content((-1.5, 2.8), text(9pt, inside-col)[$A_e$])
+    // Boundary region
+    rect((1.5, -2.5), (4.5, 2.5), fill: boundary-col.lighten(90%), stroke: boundary-col)
+    content((3, 2.8), text(9pt, boundary-col)[$B_e$])
+    // Vertices inside - 4 vertices
+    circle((-3, 1.5), radius: 0.3, fill: class1-col.lighten(50%), stroke: class1-col + 1.5pt, name: "a1")
+    content((-3, 1.5), text(8pt)[$a_1$])
+    circle((0, 2.8), radius: 0.3, fill: class1-col.lighten(50%), stroke: class1-col + 1.5pt, name: "a2")
+    content((0, 2.8), text(8pt)[$a_2$])
+    circle((-3, 0), radius: 0.3, fill: class1-col.lighten(50%), stroke: class1-col + 1.5pt, name: "a3")
+    content((-3, 0), text(8pt)[$a_3$])
+    circle((-0.5, -0.5), radius: 0.3, fill: class2-col.lighten(50%), stroke: class2-col + 1.5pt, name: "a4")
+    content((-0.5, -0.5), text(8pt)[$a_4$])
+    // Vertices boundary - 2 vertices
+    circle((3, 1), radius: 0.3, fill: boundary-col.lighten(50%), stroke: boundary-col, name: "b1")
+    content((3, 1), text(8pt)[$b_1$])
+    circle((3, -0.5), radius: 0.3, fill: boundary-col.lighten(50%), stroke: boundary-col, name: "b2")
+    content((3, -0.5), text(8pt)[$b_2$])
+    // Cross edges: a1,a2,a3 -> b1 only; a4 -> b1,b2
+    line("a1", "b1", stroke: class1-col + 1pt)
+    line("a2", "b1", stroke: class1-col + 1pt)
+    line("a3", "b1", stroke: class1-col + 1pt)
+    line("a4", "b1", stroke: class2-col + 1pt)
+    line("a4", "b2", stroke: class2-col + 1pt)
+    // Annotation
+    content((-1.5, -1.8), text(8pt, class1-col)[Class 1: $N_B = {b_1}$])
+    content((3, -1.8), text(8pt, class2-col)[Class 2: $N_B = {b_1, b_2}$])
+  }),
+  caption: [Four vertices in $A_e$, but only 2 equivalence classes based on their neighborhood in $B_e$.],
+) <fig:cut-boundary>
+
+In @fig:cut-boundary, vertices $a_1, a_2, a_3$ (purple) all connect only to $b_1$, so they share the same neighborhood $N_B = {b_1}$ and belong to *Class 1*. Vertex $a_4$ (green) connects to both $b_1$ and $b_2$, so $N_B ({a_4}) = {b_1, b_2}$ --- *Class 2*.
+
+With 4 vertices, there are $2^4 = 16$ possible subsets of $A_e$. But since $a_1, a_2, a_3$ are interchangeable (same neighborhood), many subsets collapse:
+- ${a_1}, {a_2}, {a_3}$ all have neighborhood ${b_1}$ --- same class
+- ${a_1, a_2}, {a_1, a_3}, {a_2, a_3}$ all have neighborhood ${b_1}$ --- same class
+
+== Example: Dense Formula --- Where Neighborhood Equivalence Helps
+
+Consider a CNF formula where *every variable appears in every clause*:
+$ phi = C_1 and C_2 and C_3 $
+where:
+- $C_1 = (x_1 or x_2 or x_3)$
+- $C_2 = (not x_1 or x_2 or x_3)$
+- $C_3 = (x_1 or not x_2 or not x_3)$
+
+With variables $X = {x_1, x_2, x_3}$ and clauses $C = {C_1, C_2, C_3}$, each variable appears (positively or negatively) in every clause, so the incidence graph is $K_(3,3)$.
+
+#figure(
+  canvas(length: 1cm, {
+    import draw: *
+    let var-col = rgb("#4a90d9")
+    let clause-col = rgb("#e07b53")
+    // Variables (left side)
+    circle((-2, 1.5), radius: 0.35, fill: var-col.lighten(70%), stroke: var-col + 1.5pt, name: "x1")
+    content((-2, 1.5), text(9pt)[$x_1$])
+    circle((-2, 0), radius: 0.35, fill: var-col.lighten(70%), stroke: var-col + 1.5pt, name: "x2")
+    content((-2, 0), text(9pt)[$x_2$])
+    circle((-2, -1.5), radius: 0.35, fill: var-col.lighten(70%), stroke: var-col + 1.5pt, name: "x3")
+    content((-2, -1.5), text(9pt)[$x_3$])
+    // Clauses (right side)
+    circle((2, 1.5), radius: 0.35, fill: clause-col.lighten(70%), stroke: clause-col + 1.5pt, name: "c1")
+    content((2, 1.5), text(9pt)[$C_1$])
+    circle((2, 0), radius: 0.35, fill: clause-col.lighten(70%), stroke: clause-col + 1.5pt, name: "c2")
+    content((2, 0), text(9pt)[$C_2$])
+    circle((2, -1.5), radius: 0.35, fill: clause-col.lighten(70%), stroke: clause-col + 1.5pt, name: "c3")
+    content((2, -1.5), text(9pt)[$C_3$])
     // All edges (complete bipartite)
-    set-style(stroke: gray.lighten(30%) + 0.5pt)
-    for i in range(4) {
-      for j in range(4) {
-        line("x" + str(i+1), "C" + str(j+1))
+    for v in ("x1", "x2", "x3") {
+      for c in ("c1", "c2", "c3") {
+        line(v, c, stroke: gray + 0.8pt)
       }
     }
+    // Labels
+    content((-2, 2.3), text(8pt, var-col)[Variables])
+    content((2, 2.3), text(8pt, clause-col)[Clauses])
   }),
-  caption: [The incidence graph $K_(4,4)$: every variable connects to every clause.],
-) <fig:k44>
+  caption: [Incidence graph $K_(3,3)$: every variable connected to every clause.],
+) <fig:k33-graph>
 
-== Treewidth vs Rank-Width of $K_(n,n)$
+#v(10pt)
+The cut matrix separating variables $X$ from clauses $C$ is:
+$ M = mat(1, 1, 1; 1, 1, 1; 1, 1, 1) $
+
+Over $bb(F)_2$, this matrix has *rank 1* (all rows identical). The equivalence class of a truth assignment is determined by its *neighborhood characteristic*.
+
+=== The Neighborhood Characteristic
+
+Recall from the neighborhood equivalence definition that two sets $S, S' subset.eq X$ are equivalent iff $N(S) inter B = N(S') inter B$. To compute this efficiently, we represent the neighborhood as a *characteristic vector* over $bb(F)_2$.
 
 #figure(
-  table(
-    columns: 3,
-    stroke: 0.5pt,
-    table.header([Graph], [Treewidth], [Rank-width]),
-    [$K_(4,4)$], [$4$], [$1$],
-    [$K_(n,n)$], [$n$], [$1$],
-    [$K_(100,100)$], [$100$], [$1$],
+  rect(
+    width: 100%,
+    inset: 12pt,
+    fill: rgb("#f0f8ff"),
+    stroke: rgb("#4a90d9"),
+    [
+      *Definition (Neighborhood Characteristic)*: Given a set $S subset.eq X$ with characteristic vector $bold(v) in bb(F)_2^n$ (where $v_i = 1$ iff $x_i in S$), the *neighborhood characteristic* is:
+      $ bold(n)_S = bold(v)^top M in bb(F)_2^m $
+      where $M$ is the cut matrix. The $j$-th entry is:
+      $ (bold(n)_S)_j = plus.big_(i : x_i in S) M[i,j] mod 2 $
+      This is the characteristic vector of $N(S) inter B$ computed over $bb(F)_2$.
+    ]
   ),
-  caption: [Complete bipartite graphs have constant rank-width but linear treewidth.],
-) <tab:knn>
-
-*Why is the rank-width only 1?*
-
-The biadjacency matrix of $K_(n,n)$ is the all-ones matrix $J$:
-$ M = mat(1, 1, 1, 1; 1, 1, 1, 1; 1, 1, 1, 1; 1, 1, 1, 1) $
-
-Over $bb(F)_2$, this has *rank 1* because all rows are identical! We can write:
-$ M = vec(1, 1, 1, 1) dot mat(1, 1, 1, 1) = bold(1) dot bold(1)^top $
-
-== The Dramatic Speedup
-
-For the dense formula $psi$ with $n$ variables and $n$ clauses:
-#v(20pt)
-
-#figure(
-  table(
-    columns: 3,
-    stroke: 0.5pt,
-    table.header([Approach], [State space size], [For $n = 100$]),
-    [Treewidth-based], [$2^n$], [$2^(100) approx 10^(30)$],
-    [Rank-width-based], [$2^1 = 2$], [$2$],
-  ),
-  caption: [Exponential difference in state space for dense formulas.],
-) <tab:speedup>
-
-The rank-width algorithm only needs to track *2 equivalence classes* instead of $2^(100)$ configurations!
-
-== Why Does This Work? (SVD Perspective)
-
-For tensor network practitioners, this is best understood via *SVD/low-rank factorization*.
-
-The biadjacency matrix $M = bold(1) bold(1)^top$ factors as:
-$ M = underbrace(vec(1, 1, 1, 1), U) dot underbrace(mat(1, 1, 1, 1), V^top) $
-
-For any cut partitioning variables into $A$ and $overline(A)$, a partial assignment $bold(v) in bb(F)_2^(|A|)$ produces a boundary effect:
-$ bold(v)^top M = (bold(v)^top bold(1)) dot bold(1)^top $
-
-The term $(bold(v)^top bold(1)) in bb(F)_2$ is just the *parity* (sum mod 2) of the assignment bits. This gives only 2 possible values:
-- Parity 0 $arrow.r$ boundary effect $= bold(0)$
-- Parity 1 $arrow.r$ boundary effect $= bold(1)$
-
-#figure(
-  canvas(length: 1cm, {
-    import draw: *
-    
-    let box-fill = rgb("#f8f8f8")
-    
-    // Left: high-dimensional space
-    rect((-0.5, -1), (1.5, 1), fill: box-fill, stroke: gray)
-    content((0.5, 1.3), text(9pt)[$bb(F)_2^n$])
-    content((0.5, 0), text(8pt)[$2^n$ partial\ assignments])
-    
-    // Arrow to middle
-    line((1.7, 0), (2.8, 0), mark: (end: "stealth"), stroke: black + 0.8pt)
-    content((2.25, 0.4), text(8pt)[$times bold(1)$])
-    
-    // Middle: low-dimensional space
-    rect((3, -0.5), (4.5, 0.5), fill: rgb("#e8f4e8"), stroke: rgb("#4a4"))
-    content((3.75, 0.8), text(9pt)[$bb(F)_2^1$])
-    content((3.75, 0), text(8pt)[2 classes])
-    
-    // Arrow to right
-    line((4.7, 0), (5.8, 0), mark: (end: "stealth"), stroke: black + 0.8pt)
-    content((5.25, 0.4), text(8pt)[$times bold(1)^top$])
-    
-    // Right: boundary effect
-    rect((6, -1), (8, 1), fill: box-fill, stroke: gray)
-    content((7, 1.3), text(9pt)[$bb(F)_2^n$])
-    content((7, 0), text(8pt)[boundary\ effects])
-  }),
-  caption: [SVD bottleneck: $2^n$ assignments compress to just 2 equivalence classes through the rank-1 factorization.],
-) <fig:svd>
-
-#v(20pt)
-This is exactly the *bond dimension* in tensor networks: when you SVD a matrix of rank $r$, the bond dimension is $r$. Here $r = 1$, so we only need to track $2^1 = 2$ states instead of $2^n$.
-
-== Connecting to Counting: Full DP Walkthrough
-
-Let's trace through the algorithm step-by-step on a simpler instance to see actual numbers.
-
-=== Setup: A 2×2 Dense Formula
-
-Consider $phi = C_1 and C_2$ with variables $x_1, x_2$ where:
-- $C_1 = (x_1 or x_2)$ — satisfied unless both false
-- $C_2 = (not x_1 or not x_2)$ — satisfied unless both true
-
-The incidence graph is $K_(2,2)$ (every variable in every clause).
-
-#figure(
-  canvas(length: 1cm, {
-    import draw: *
-    let var-color = rgb("#4a90d9")
-    let clause-color = rgb("#e07b53")
-    
-    circle((0, 0), radius: 0.3, fill: var-color.lighten(70%), stroke: var-color, name: "x1")
-    content((0, 0), text(8pt, $x_1$))
-    circle((0, -1.2), radius: 0.3, fill: var-color.lighten(70%), stroke: var-color, name: "x2")
-    content((0, -1.2), text(8pt, $x_2$))
-    
-    rect((1.7, -0.2), (2.3, 0.2), fill: clause-color.lighten(70%), stroke: clause-color, name: "C1")
-    content((2, 0), text(8pt, $C_1$))
-    rect((1.7, -1.4), (2.3, -1.0), fill: clause-color.lighten(70%), stroke: clause-color, name: "C2")
-    content((2, -1.2), text(8pt, $C_2$))
-    
-    set-style(stroke: gray + 0.6pt)
-    line("x1", "C1")
-    line("x1", "C2")
-    line("x2", "C1")
-    line("x2", "C2")
-  }),
-  caption: [Incidence graph $K_(2,2)$ for $phi = (x_1 or x_2) and (not x_1 or not x_2)$.],
+  caption: [The neighborhood characteristic is the $bb(F)_2$-representation of the neighborhood.],
 )
+#v(10pt)
+*For \#SAT*: When $S$ is the set of TRUE variables and $B$ is the set of clauses, $(bold(n)_S)_j$ counts (mod 2) how many TRUE variables appear in clause $C_j$.
 
-=== The Rank Decomposition Tree
+*Connection to neighborhood equivalence*: Two sets $S, S'$ are neighborhood-equivalent iff they have the same neighborhood characteristic:
+$ S tilde.eq S' <==> bold(n)_S = bold(n)_(S') <==> bold(v)^top M = bold(v')^top M $
 
-#figure(
-  canvas(length: 1cm, {
-    import draw: *
-    let node-fill = rgb("#f0f0f0")
-    let leaf-fill = rgb("#e8f4e8")
-    let cut-color = rgb("#e74c3c")
-    
-    // Root
-    circle((0, 0), radius: 0.2, fill: node-fill, stroke: black + 0.6pt, name: "root")
-    content((0, 0.5), text(8pt)[root])
-    
-    // Level 1
-    circle((-1.5, -1.2), radius: 0.2, fill: node-fill, stroke: black + 0.6pt, name: "L")
-    circle((1.5, -1.2), radius: 0.2, fill: node-fill, stroke: black + 0.6pt, name: "R")
-    
-    // Leaves
-    circle((-2.2, -2.4), radius: 0.3, fill: leaf-fill, stroke: black + 0.6pt, name: "x1")
-    content((-2.2, -2.4), text(8pt, $x_1$))
-    circle((-0.8, -2.4), radius: 0.3, fill: leaf-fill, stroke: black + 0.6pt, name: "C1")
-    content((-0.8, -2.4), text(8pt, $C_1$))
-    circle((0.8, -2.4), radius: 0.3, fill: leaf-fill, stroke: black + 0.6pt, name: "x2")
-    content((0.8, -2.4), text(8pt, $x_2$))
-    circle((2.2, -2.4), radius: 0.3, fill: leaf-fill, stroke: black + 0.6pt, name: "C2")
-    content((2.2, -2.4), text(8pt, $C_2$))
-    
-    // Edges
-    line("root", "L")
-    line("root", "R")
-    line("L", "x1")
-    line("L", "C1")
-    line("R", "x2")
-    line("R", "C2")
-    
-    // Cut line
-    line((0, 0.3), (0, -2.7), stroke: (paint: cut-color, dash: "dashed", thickness: 1.5pt))
-    content((-1.5, -3), text(8pt, cut-color)[$A = {x_1, C_1}$])
-    content((1.5, -3), text(8pt, cut-color)[$overline(A) = {x_2, C_2}$])
-  }),
-  caption: [Rank decomposition with cut at the root edge.],
-)
+=== Computing the Neighborhood Characteristic
 
-=== Step 1: Compute Cut Matrix and Rank
+Let $bold(v) in bb(F)_2^3$ be the characteristic vector of TRUE variables (e.g., $bold(v) = (1,1,0)$ means $x_1 = x_2 = "TRUE", x_3 = "FALSE"$).
 
-The cut matrix $M_A$ for partition $A = {x_1, C_1}$ vs $overline(A) = {x_2, C_2}$:
+For our dense formula with $M = J$ (all-ones matrix):
+$ bold(n)_S = bold(v)^top M = bold(v)^top mat(1, 1, 1; 1, 1, 1; 1, 1, 1) = (v_1 xor v_2 xor v_3) dot (1, 1, 1) $
 
-#v(20pt)
-#figure(
-  table(
-    columns: 3,
-    stroke: 0.5pt,
-    [], [$x_2$], [$C_2$],
-    [$x_1$], [0], [1],
-    [$C_1$], [1], [0],
-  ),
-  caption: [Cut matrix $M_A$. Entry is 1 if edge exists in incidence graph.],
-)
+Since every variable appears in every clause, the neighborhood characteristic depends only on the *parity* of $|S|}$!
 
-Over $bb(F)_2$: $op("rank")(M_A) = 2$ (rows are linearly independent). So we have $2^2 = 4$ equivalence classes.
-
-_Note: This small example doesn't show exponential savings. The key is that for $K_(n,n)$, rank stays 1 while cut size grows to $n$._
-
-=== Step 2: DP from Leaves to Root
-
-The DP computes a table $T_v [c]$ at each node $v$, indexed by equivalence class $c$.
-
-*Leaf nodes* (variables $x_1, x_2$): For each assignment $x_i in {0, 1}$, compute its signature.
-
-#v(20pt)
-#figure(
-  table(
-    columns: 3,
-    stroke: 0.5pt,
-    table.header([Node], [Assignment], [Table $T$]),
-    [$x_1$], [$x_1 = 0$], [$T_(x_1)[sigma_0] = 1$],
-    [], [$x_1 = 1$], [$T_(x_1)[sigma_1] = 1$],
-    [$x_2$], [$x_2 = 0$], [$T_(x_2)[sigma'_0] = 1$],
-    [], [$x_2 = 1$], [$T_(x_2)[sigma'_1] = 1$],
-  ),
-  caption: [Leaf tables: count 1 for each possible assignment.],
-)
-
-*Leaf nodes* (clauses $C_1, C_2$): Clauses contribute constraint information.
-
-*Internal nodes*: Merge child tables by summing over compatible signatures.
-
-=== Step 3: Detailed Merge at Root
-
-At the root, we combine left subtree (covering $x_1, C_1$) and right subtree (covering $x_2, C_2$).
-
-*Left subtree result* $T_L$: counts of $(x_1)$ assignments that satisfy $C_1$'s constraints
-
-#v(20pt)
-#figure(
-  table(
-    columns: 3,
-    stroke: 0.5pt,
-    table.header([$x_1$], [Status of $C_1$], [Count]),
-    [0], [$C_1$ needs $x_2 = 1$], [1],
-    [1], [$C_1$ satisfied], [1],
-  ),
-  caption: [Left subtree: how $x_1$ affects $C_1 = (x_1 or x_2)$.],
-)
-
-*Right subtree result* $T_R$: counts of $(x_2)$ assignments that satisfy $C_2$'s constraints
-
-#v(20pt)
-#figure(
-  table(
-    columns: 3,
-    stroke: 0.5pt,
-    table.header([$x_2$], [Status of $C_2$], [Count]),
-    [0], [$C_2$ satisfied], [1],
-    [1], [$C_2$ needs $x_1 = 0$], [1],
-  ),
-  caption: [Right subtree: how $x_2$ affects $C_2 = (not x_1 or not x_2)$.],
-)
-
-=== Step 4: Final Contraction
-
-Now we contract $T_L$ and $T_R$, checking which combinations satisfy *both* clauses:
-
-#v(20pt)
+#v(10pt)
 #figure(
   table(
     columns: 5,
     stroke: 0.5pt,
-    table.header([$x_1$], [$x_2$], [$C_1$ ok?], [$C_2$ ok?], [Valid?]),
-    [0], [0], [needs $x_2=1$ #sym.times], [#sym.checkmark], [#sym.times],
-    [0], [1], [#sym.checkmark], [#sym.checkmark], [#sym.checkmark],
-    [1], [0], [#sym.checkmark], [#sym.checkmark], [#sym.checkmark],
-    [1], [1], [#sym.checkmark], [needs $x_1=0$ #sym.times], [#sym.times],
+    table.header([*TRUE vars $S$*], [*$bold(v)$*], [*$|S| mod 2$*], [*Neighborhood $bold(n)_S$*], [*Class*]),
+    [$emptyset$], [$(0,0,0)$], [$0$], [$(0,0,0)$], [0],
+    [${x_1}$], [$(1,0,0)$], [$1$], [$(1,1,1)$], [1],
+    [${x_2}$], [$(0,1,0)$], [$1$], [$(1,1,1)$], [1],
+    [${x_3}$], [$(0,0,1)$], [$1$], [$(1,1,1)$], [1],
+    [${x_1, x_2}$], [$(1,1,0)$], [$0$], [$(0,0,0)$], [0],
+    [${x_1, x_3}$], [$(1,0,1)$], [$0$], [$(0,0,0)$], [0],
+    [${x_2, x_3}$], [$(0,1,1)$], [$0$], [$(0,0,0)$], [0],
+    [${x_1, x_2, x_3}$], [$(1,1,1)$], [$1$], [$(1,1,1)$], [1],
   ),
-  caption: [Compatibility check: only 2 assignments satisfy both clauses.],
+  caption: [The neighborhood characteristic $bold(n)_S$ determines the equivalence class.],
+) <tab:k33-equiv>
+
+=== Why is $\{x_1, x_2\}$ in Class 0?
+
+Let's trace through the computation step by step for assignment $S = {x_1, x_2}$ (i.e., $x_1 = x_2 = "TRUE", x_3 = "FALSE"$):
+
+1. *Characteristic vector*: $bold(v) = (1, 1, 0)$
+
+2. *Matrix multiplication*:
+$ bold(n)_S = bold(v)^top M = mat(1, 1, 0) mat(1, 1, 1; 1, 1, 1; 1, 1, 1) $
+
+3. *For each clause $C_j$*, compute $(bold(n)_S)_j = v_1 dot M[1,j] xor v_2 dot M[2,j] xor v_3 dot M[3,j]$:
+   - $(bold(n)_S)_1 = 1 dot 1 xor 1 dot 1 xor 0 dot 1 = 1 xor 1 xor 0 = 0$
+   - $(bold(n)_S)_2 = 1 dot 1 xor 1 dot 1 xor 0 dot 1 = 1 xor 1 xor 0 = 0$
+   - $(bold(n)_S)_3 = 1 dot 1 xor 1 dot 1 xor 0 dot 1 = 1 xor 1 xor 0 = 0$
+
+4. *Result*: $bold(n)_S = (0, 0, 0)$ --- Class 0!
+
+Since both $x_1$ and $x_2$ appear in every clause, when both are TRUE, each clause contributes $1 xor 1 = 0$ (even parity). This yields the same neighborhood characteristic as $emptyset$.
+
+=== Implications for \#SAT
+
+Two assignments are *neighborhood-equivalent* if they produce the same neighborhood characteristic. Equivalent assignments interact identically with the boundary vertices during the DP computation.
+
+#figure(
+  rect(
+    width: 100%,
+    inset: 12pt,
+    fill: rgb("#f8fff8"),
+    stroke: rgb("#4a4"),
+    [
+      *Implication*: When counting satisfying assignments, we only need to track *how many* assignments fall into each equivalence class, not which specific assignments. This reduces the state space from $2^n$ to $2^k$ where $k$ is the rank-width.
+    ]
+  ),
+  caption: [Equivalence classes enable efficient counting.],
 )
 
-*Result*: $\#op("SAT")(phi) = 2$
+#v(10pt)
+In this example, only 2 distinct neighborhood characteristics exist:
+- *Class 0* (neighborhood $(0,0,0)$): $emptyset, {x_1,x_2}, {x_1,x_3}, {x_2,x_3}$
+- *Class 1* (neighborhood $(1,1,1)$): ${x_1}, {x_2}, {x_3}, {x_1,x_2,x_3}$
 
-=== Where's the Rank-Width Advantage?
+This yields a 4x compression: 8 assignments reduce to 2 equivalence classes.
 
-The 2×2 example above doesn't show compression because $op("rank")(M_A) = 2$ equals the cut size. Let's see a *larger* example where rank-width truly helps.
+== Counterexample: Sparse Formula --- No Compression
 
-==== A 4×4 Example with Rank-1 Compression
+Now consider a CNF formula where *each variable appears in exactly one clause*:
+$ psi = C_1 and C_2 and C_3 $
+where:
+- $C_1 = (x_1)$
+- $C_2 = (x_2)$
+- $C_3 = (x_3)$
 
-Consider $K_(4,4)$: 4 variables ${x_1, x_2, x_3, x_4}$ on left, 4 clauses on right, every variable in every clause.
+With variables $X = {x_1, x_2, x_3}$ and clauses $C = {C_1, C_2, C_3}$, each variable appears in exactly one clause, so the incidence graph is a *perfect matching* $M_3$.
 
-*Cut matrix* (all ones):
-$ M = mat(1,1,1,1; 1,1,1,1; 1,1,1,1; 1,1,1,1) $
+#figure(
+  canvas(length: 1cm, {
+    import draw: *
+    let var-col = rgb("#4a90d9")
+    let clause-col = rgb("#e07b53")
+    // Variables (left side)
+    circle((-2, 1.5), radius: 0.35, fill: var-col.lighten(70%), stroke: var-col + 1.5pt, name: "x1")
+    content((-2, 1.5), text(9pt)[$x_1$])
+    circle((-2, 0), radius: 0.35, fill: var-col.lighten(70%), stroke: var-col + 1.5pt, name: "x2")
+    content((-2, 0), text(9pt)[$x_2$])
+    circle((-2, -1.5), radius: 0.35, fill: var-col.lighten(70%), stroke: var-col + 1.5pt, name: "x3")
+    content((-2, -1.5), text(9pt)[$x_3$])
+    // Clauses (right side)
+    circle((2, 1.5), radius: 0.35, fill: clause-col.lighten(70%), stroke: clause-col + 1.5pt, name: "c1")
+    content((2, 1.5), text(9pt)[$C_1$])
+    circle((2, 0), radius: 0.35, fill: clause-col.lighten(70%), stroke: clause-col + 1.5pt, name: "c2")
+    content((2, 0), text(9pt)[$C_2$])
+    circle((2, -1.5), radius: 0.35, fill: clause-col.lighten(70%), stroke: clause-col + 1.5pt, name: "c3")
+    content((2, -1.5), text(9pt)[$C_3$])
+    // Only matching edges (x_i to C_i)
+    line("x1", "c1", stroke: gray + 1.2pt)
+    line("x2", "c2", stroke: gray + 1.2pt)
+    line("x3", "c3", stroke: gray + 1.2pt)
+    // Labels
+    content((-2, 2.3), text(8pt, var-col)[Variables])
+    content((2, 2.3), text(8pt, clause-col)[Clauses])
+  }),
+  caption: [Incidence graph $M_3$: each variable connected to exactly one clause.],
+) <fig:m3-graph>
 
-*SVD over $bb(F)_2$*: $M = bold(1) dot bold(1)^top$ has *rank 1*.
+#v(10pt)
+The cut matrix separating variables from clauses is the *identity matrix*:
+$ M = mat(1, 0, 0; 0, 1, 0; 0, 0, 1) $
 
-*The key compression*: Instead of tracking $2^4 = 16$ partial assignments to ${x_1, x_2, x_3, x_4}$, we only track *2 equivalence classes* based on parity:
+Over $bb(F)_2$, this has *rank 3* (full rank). Let's compute the neighborhood characteristics:
+
+For any set $S$ with characteristic vector $bold(v)$:
+$ bold(n)_S = bold(v)^top I = bold(v) $
+
+The neighborhood characteristic *equals* the characteristic vector itself! This means every distinct set has a distinct neighborhood.
+
+#v(10pt)
+#figure(
+  table(
+    columns: 4,
+    stroke: 0.5pt,
+    table.header([*TRUE variables $S$*], [*$bold(v)$*], [*Neighborhood $bold(n)_S = bold(v)^top I$*], [*Class*]),
+    [$emptyset$], [$(0,0,0)$], [$(0,0,0)$], [$(0,0,0)$],
+    [${x_1}$], [$(1,0,0)$], [$(1,0,0)$], [$(1,0,0)$],
+    [${x_2}$], [$(0,1,0)$], [$(0,1,0)$], [$(0,1,0)$],
+    [${x_3}$], [$(0,0,1)$], [$(0,0,1)$], [$(0,0,1)$],
+    [${x_1, x_2}$], [$(1,1,0)$], [$(1,1,0)$], [$(1,1,0)$],
+    [${x_1, x_3}$], [$(1,0,1)$], [$(1,0,1)$], [$(1,0,1)$],
+    [${x_2, x_3}$], [$(0,1,1)$], [$(0,1,1)$], [$(0,1,1)$],
+    [${x_1, x_2, x_3}$], [$(1,1,1)$], [$(1,1,1)$], [$(1,1,1)$],
+  ),
+  caption: [Each truth assignment has a *unique* neighborhood characteristic --- no compression.],
+) <tab:matching-equiv>
+
+*Key observation*: Every truth assignment has a *distinct* neighborhood characteristic! The 8 assignments map to 8 different equivalence classes.
+
+*Why?* Each variable $x_i$ only appears in clause $C_i$. Setting $x_i$ to TRUE affects *only* $C_i$, independently of other variables. The clauses can distinguish every assignment because no two variables "overlap" in their clause memberships.
+
+#figure(
+  rect(
+    width: 100%,
+    inset: 12pt,
+    fill: rgb("#fff0f0"),
+    stroke: rgb("#c44"),
+    [
+      *Why sparse formulas don't benefit*: When each variable appears in a unique clause, the cut matrix is the identity (full rank). Every truth assignment produces a unique neighborhood characteristic:
+      $ "equivalence classes" = 2^(op("rank")(I_n)) = 2^n = "number of assignments" $
+      No compression from neighborhood equivalence!
+    ]
+  ),
+  caption: [Sparse variable-clause structure prevents algebraic compression.],
+)
+
+== Comparison: Why Formula Structure Matters
+
+#figure(
+  table(
+    columns: 5,
+    stroke: 0.5pt,
+    table.header([*Formula Type*], [*Cut Matrix*], [*Rank*], [*Equiv. Classes*], [*Compression*]),
+    [Dense (every var in every clause)], [All-ones $J$], [$1$], [$2^1 = 2$], [$2^(n-1) times$],
+    [Sparse (each var in one clause)], [Identity $I$], [$n$], [$2^n$], [None],
+  ),
+  caption: [Dense formulas enable compression; sparse formulas do not.],
+) <tab:compression-comparison>
+
+The contrast is clear: dense formulas (where variables share clauses) have low-rank cut matrices, while sparse formulas (where variables appear in disjoint clauses) have full-rank cut matrices. This determines whether neighborhood equivalence provides any benefit for \#SAT.
+
+== Scaling to $K_(n,n)$
+
+The $K_(3,3)$ example generalizes to $K_(n,n)$:
+#v(10pt)
+#figure(
+  table(
+    columns: 4,
+    stroke: 0.5pt,
+    table.header([*Graph*], [*Treewidth*], [*Rank-width*], [*Compression*]),
+    [$K_(n,n)$], [$n$], [$1$], [$2^(n-1) times$],
+  ),
+  caption: [Complete bipartite graphs have constant rank-width but linear treewidth.],
+) <tab:knn>
+
+For $n = 100$: treewidth-based algorithms require $2^(100) approx 10^(30)$ states, while rank-width-based algorithms require only $2^1 = 2$ states.
+
+= The DP Algorithm
+
+The Ganian et al. algorithm @ganian2010 processes the rank decomposition tree bottom-up, using neighborhood equivalence to compress the state space.
+
+== Overview
+
+The algorithm traverses the rank decomposition $(T, L)$ from leaves to root. At each node, it maintains a table mapping *neighborhood classes* to *model counts*.
+
+#figure(
+  rect(
+    width: 100%,
+    inset: 12pt,
+    fill: rgb("#fff8e8"),
+    stroke: rgb("#c90"),
+    [
+      *Key Idea*: For a subtree with vertex set $A$ and boundary $B := V - A$:
+      - Group partial assignments by their neighborhood equivalence class
+      - Track how many satisfying assignments fall into each class
+      - At most $2^(rho_G (A))$ classes to track (not $2^(|A|)$)
+    ]
+  ),
+  caption: [The compression principle behind the DP algorithm.],
+)
+
+== State Representation
+
+At each edge $e$ of the decomposition tree (separating $A_e$ from $B_e$):
+- *State*: A vector $bold(s) in bb(F)_2^(|B_e|)$ representing the neighborhood characteristic on the boundary
+- *Table*: $T_e [bold(s)]$ = number of partial truth assignments to variables in $A_e$ that:
+  1. Satisfy all clauses fully contained in $A_e$
+  2. Have neighborhood characteristic $bold(s)$ on the boundary
+
+Since equivalent neighborhood characteristics collapse, the table has at most $2^(rho_G (A_e))$ entries.
+
+== Processing Nodes
+
+The algorithm processes three types of nodes:
+
+=== Leaf Nodes (Variable Introduction)
+
+For a leaf corresponding to variable $v$ with boundary $B$:
+- Compute $N(v) inter B$ (neighbors of $v$ in the boundary)
+- $T[bold(0)]$ += 1 (assignment $v = 0$, no neighborhood contribution)
+- $T[chi_(N(v) inter B)]$ += 1 (assignment $v = 1$, contributes its neighborhood)
+
+where $chi_S$ is the characteristic vector of set $S$.
+
+=== Internal Nodes (Join)
+
+For an internal node with children corresponding to edges $e_1, e_2$:
+$ T_e [bold(s)] = sum_(bold(s)_1 xor bold(s)_2 = bold(s)) T_(e_1)[bold(s)_1] dot T_(e_2)[bold(s)_2] $
+
+This is a *convolution over $bb(F)_2$* --- the XOR reflects that neighborhoods combine additively in $bb(F)_2$.
+
+=== Root Node (Final Count)
+
+At the root, sum over all states that correspond to *satisfied* formulas:
+$ \#op("SAT")(phi) = sum_(bold(s) : "all clauses satisfied") T_("root")[bold(s)] $
+
+== Complexity Analysis
+
+#figure(
+  table(
+    columns: 3,
+    stroke: 0.5pt,
+    table.header([*Component*], [*Size*], [*For rank-width $k$*]),
+    [Equivalence classes], [$2^(rho_G (A_e))$], [$<= 2^k$],
+    [Table size per node], [$O(2^k)$], [$O(2^k)$],
+    [Join operation], [$O(|T|^2)$], [$O(2^(2k))$],
+    [Total (naive)], [$O(n dot 2^(2k))$], [$O(n dot 2^(2k))$],
+  ),
+  caption: [DP complexity depends on the rank-width $k$.],
+) <tab:dp-complexity>
+
+The actual complexity from @ganian2010 is $O(2^(3k) dot n^2 dot m)$ where $n$ is the number of variables and $m$ is the number of clauses.
+
+= Additional Graph Families
+
+#figure(
+  table(
+    columns: 4,
+    stroke: 0.5pt,
+    table.header([*Graph Family*], [*Treewidth*], [*Rank-width*], [*Advantage*]),
+    [$K_(n,n)$ (complete bipartite)], [$n$], [$1$], [Exponential],
+    [$K_n$ (complete)], [$n-1$], [$ceil(n/2) - 1$], [None],
+    [$P_n$ (path)], [$1$], [$1$], [None],
+    [$C_n$ (cycle)], [$2$], [$2$], [None],
+    [Grid $G_(m times n)$], [$min(m,n)$], [$Theta(min(m,n))$], [None],
+  ),
+  caption: [Comparison of treewidth and rank-width for various graph families.],
+) <tab:graph-comparison>
+
+Rank-width captures algebraic structure (low-rank adjacency matrices) rather than combinatorial sparsity. Dense graphs with regular structure can have low rank-width.
+
+= Computing Rank-Width
+
+Computing rank-width exactly is NP-hard @oum2006. Several algorithmic approaches exist:
 
 #v(10pt)
 #figure(
   table(
     columns: 3,
     stroke: 0.5pt,
-    table.header([Equivalence Class], [Parity $= sum x_i mod 2$], [Assignments]),
-    [$c_0$ (even)], [0], [$(0000), (0011), (0101), (0110), (1001), (1010), (1100), (1111)$],
-    [$c_1$ (odd)], [1], [$(0001), (0010), (0100), (1000), (0111), (1011), (1101), (1110)$],
+    table.header([*Approach*], [*Complexity*], [*Notes*]),
+    [Exact], [$O(3^n)$], [Brute force],
+    [FPT], [$O(f(k) dot n^3)$], [Fixed-parameter tractable],
+    [Approximation], [Polynomial], [$(3k+1)$-approximation @oum2006],
   ),
-  caption: [16 assignments compressed into 2 equivalence classes by parity.],
+  caption: [Algorithms for computing rank-width.],
 )
 
-*Why parity? Why $bb(F)_2$?* This deserves careful explanation.
+The cut-rank function $rho(A) = op("rank")_(bb(F)_2)(M_A)$ satisfies two key properties:
+- *Symmetric*: $rho(A) = rho(B)$
+- *Submodular*: $rho(A) + rho(B) >= rho(A inter B) + rho(A union B)$
 
-==== The Role of $bb(F)_2$: Defining Equivalence, Not Counting
+Submodularity enables efficient approximation algorithms.
 
-The counting is still over $bb(Z)$ (integers). But $bb(F)_2$ defines *which assignments are equivalent*.
+= Complexity Comparison
 
-*Definition of equivalence*: Two partial assignments $bold(x)$ and $bold(x)'$ are equivalent iff they produce the *same boundary effect* — i.e., they leave the same "constraints" for the other side to satisfy.
-
-==== What Does $bold(x)^top M$ Mean?
-
-Let's unpack this with a concrete example. Suppose the cut separates:
-- Left side $A$: variables ${x_1, x_2}$  
-- Right side $overline(A)$: clauses ${C_1, C_2}$
-
-The cut matrix $M$ records which variable appears in which clause:
-$ M = mat(M_(x_1, C_1), M_(x_1, C_2); M_(x_2, C_1), M_(x_2, C_2)) $
-
-For $K_(n,n)$ (every variable in every clause): $M = mat(1,1; 1,1)$
-
-Now, $bold(x) = (x_1, x_2)$ is a partial assignment. The product $bold(x)^top M$ computes:
-$ bold(x)^top M = mat(x_1, x_2) mat(1,1; 1,1) = mat(x_1 + x_2, x_1 + x_2) $
-
-*Interpretation over $bb(F)_2$*: The $j$-th entry $(bold(x)^top M)_j$ counts (mod 2) *how many assigned variables appear in clause $C_j$*.
-
-#v(20pt)
-#figure(
-  table(
-    columns: 4,
-    stroke: 0.5pt,
-    table.header([$(x_1, x_2)$], [$bold(x)^top M$ over $bb(F)_2$], [Meaning], [Class]),
-    [$(0, 0)$], [$(0, 0)$], [0 true vars in each clause], [$c_0$],
-    [$(0, 1)$], [$(1, 1)$], [1 true var in each clause], [$c_1$],
-    [$(1, 0)$], [$(1, 1)$], [1 true var in each clause], [$c_1$],
-    [$(1, 1)$], [$(0, 0)$], [2 true vars $equiv$ 0 mod 2], [$c_0$],
-  ),
-  caption: [$bold(x)^top M$ computes how the partial assignment affects boundary clauses.],
-)
-
-*Why this determines equivalence*: Assignments $(0,1)$ and $(1,0)$ both give boundary effect $(1,1)$. From the right side's perspective, *they look identical* — both have "1 true variable (mod 2)" in each clause. So they belong to the same equivalence class.
-
-For SAT, a clause is either satisfied (1) or needs help (0). This is inherently *binary*. The boundary effect is a vector in ${0,1}^(|"boundary clauses"|)$.
-
-*Key observation*: The boundary effect of $bold(x)$ on clauses across the cut is determined by:
-$ "boundary effect" = bold(x)^top M mod 2 $
-where $M$ is the cut matrix (which variables appear in which clauses).
-
-==== Why Parity for $K_(n,n)$?
-
-For the all-ones matrix $M = bold(1) bold(1)^top$:
-
-$ bold(x)^top M = bold(x)^top (bold(1) bold(1)^top) = underbrace((bold(x)^top bold(1)), "parity") dot bold(1)^top $
-
-The boundary effect is completely determined by $bold(x)^top bold(1) = sum_i x_i mod 2$ — the *parity*.
-
-*Two assignments with the same parity produce identical boundary effects*, so they are equivalent for counting purposes.
-
-==== Separating Equivalence from Counting
-
-#figure(
-  canvas(length: 1cm, {
-    import draw: *
-    
-    let box-fill = rgb("#f8f8f8")
-    
-    // Left box: F_2 structure
-    rect((-0.5, -1.5), (3, 1.5), fill: rgb("#fff8e8"), stroke: rgb("#cc9"))
-    content((1.25, 1.8), text(9pt, rgb("#996"))[*$bb(F)_2$ world*])
-    content((1.25, 0.8), text(8pt)[Define equivalence])
-    content((1.25, 0.3), text(8pt)[via boundary effect])
-    content((1.25, -0.3), text(8pt)[$bold(x) tilde bold(x)' <==> bold(x)^top M = bold(x)'^top M$])
-    content((1.25, -1.0), text(8pt)[Number of classes $= 2^(op("rank")(M))$])
-    
-    // Arrow
-    line((3.2, 0), (4.3, 0), mark: (end: "stealth"), stroke: black + 0.8pt)
-    
-    // Right box: Z structure  
-    rect((4.5, -1.5), (8, 1.5), fill: rgb("#e8f8e8"), stroke: rgb("#9c9"))
-    content((6.25, 1.8), text(9pt, rgb("#696"))[*$bb(Z)$ world*])
-    content((6.25, 0.8), text(8pt)[Count assignments])
-    content((6.25, 0.3), text(8pt)[in each class])
-    content((6.25, -0.3), text(8pt)[$|c_0| = 8, |c_1| = 8$])
-    content((6.25, -1.0), text(8pt)[Final: $sum_c |c| dot g(c)$])
-  }),
-  caption: [$bb(F)_2$ defines equivalence classes; $bb(Z)$ does the counting.],
-)
-
-*Summary*:
-- $bb(F)_2$ rank $arrow.r$ number of equivalence classes (exponentially small)
-- $bb(Z)$ counting $arrow.r$ how many assignments per class, final answer
-
-==== Counting with Compressed States
-
-The DP now works with just 2 states:
-
-#v(10pt)
 #figure(
   table(
     columns: 3,
     stroke: 0.5pt,
-    table.header([Class], [Count of assignments], [Signature]),
-    [$c_0$], [$|c_0| = 8$], [even parity],
-    [$c_1$], [$|c_1| = 8$], [odd parity],
+    table.header([*Algorithm*], [*Time Complexity*], [*Reference*]),
+    [Treewidth-based], [$O(2^(t w) dot n)$], [Standard DP],
+    [Clique-width-based], [$O(2^(c w) dot n^2)$], [@courcelle2000],
+    [Rank-width-based], [$O(2^(3 r w) dot n^2 dot m)$], [@ganian2010],
   ),
-  caption: [Compressed DP table: 2 entries instead of 16.],
-)
-
-When we contract with the right side (clauses), we compute:
-$ \#op("SAT") = |c_0| dot g(c_0) + |c_1| dot g(c_1) = 8 dot g(c_0) + 8 dot g(c_1) $
-
-where $g(c_i)$ counts how many clause configurations are compatible with parity class $c_i$.
-
-==== The Exponential Savings
-
-#figure(
-  table(
-    columns: 4,
-    stroke: 0.5pt,
-    table.header([$n$], [Naive DP states], [Rank-width DP states], [Compression]),
-    [4], [$2^4 = 16$], [2], [$8 times$],
-    [10], [$2^(10) = 1024$], [2], [$512 times$],
-    [100], [$2^(100) approx 10^(30)$], [2], [$10^(30) times$],
-  ),
-  caption: [For $K_(n,n)$, rank-width gives exponential compression.],
-)
-
-*This is the rank-width advantage*: The all-ones matrix has rank 1, so we only need $2^1 = 2$ DP states regardless of $n$. The SVD $M = bold(1) bold(1)^top$ tells us exactly what to track: the *parity*.
-
-=== The Tensor Network View
-
-The computation is a tensor contraction:
-
-$ \#op("SAT") = sum_c T_L [c] dot T_R [c] $
-
-#figure(
-  canvas(length: 1cm, {
-    import draw: *
-    
-    let tensor-fill = rgb("#a8d5ba")
-    
-    // Left tensor
-    circle((-1.5, 0), radius: 0.5, fill: tensor-fill, stroke: black, name: "L")
-    content((-1.5, 0), text(10pt)[$T_L$])
-    
-    // Bond (equivalence class index)
-    line("L", (0.5, 0), stroke: red + 1.5pt, name: "bond")
-    content((0, 0.4), text(9pt, red)[bond dim $= 2^r$])
-    
-    // Right tensor
-    circle((1.5, 0), radius: 0.5, fill: tensor-fill, stroke: black, name: "R")
-    content((1.5, 0), text(10pt)[$T_R$])
-    
-    // External legs (summed over)
-    line((-1.5, 0.5), (-1.5, 1.2), stroke: gray)
-    content((-1.5, 1.5), text(8pt, gray)[$x_1$])
-    
-    line((1.5, 0.5), (1.5, 1.2), stroke: gray)
-    content((1.5, 1.5), text(8pt, gray)[$x_2$])
-  }),
-  caption: [Tensor network for \#SAT. Bond dimension $= 2^(op("rank")(M_A))$. For $K_(n,n)$, this is $2^1 = 2$ regardless of $n$!],
-) <fig:tn-count>
-
-#v(20pt)
-*Key insight*: For $K_(n,n)$ with $n$ variables per side, the bond dimension is $2^1 = 2$, not $2^n$. This is the exponential saving from rank-width!
-
-= When Does Rank-Width Help? (Summary)
-
-== Similar Performance
-
-For *sparse* graphs (grid-like, tree-like):
-- Treewidth $approx$ Rank-width
-- Both approaches give similar complexity
-
-== Exponential Improvement
-
-For *dense* graphs with *low-rank structure*:
-- Complete graphs $K_n$: treewidth $= n-1$, rank-width $= 1$
-- Complete bipartite $K_(n,n)$: treewidth $= n$, rank-width $= 1$
-- Random dense graphs: often have low rank-width
-
-= Connection to Tree Decomposition Framework
-
-#figure(
-  table(
-    columns: 2,
-    stroke: none,
-    table.hline(),
-    table.header([*Tensor Network Concept*], [*Rank-Width Analogue*]),
-    table.hline(),
-    [Tree decomposition], [Rank decomposition (binary tree)],
-    [Bag (set of vertices)], [Partition induced by tree edge],
-    [Separator size], [Rank of cut matrix],
-    [Bond dimension], [$2^(op("rank"))$ equivalence classes],
-    [Line graph], [Incidence graph (for SAT)],
-    table.hline(),
-  ),
-  caption: [Mapping between tensor network and rank-width concepts.],
-) <tab:mapping>
-
-= Practical Implications
-
-For tensor network contraction:
-
-+ *When treewidth is small*: Use standard tree decomposition $arrow.r$ tensor contraction.
-
-+ *When treewidth is large but rank-width is small*: Consider rank-decomposition-based contraction. The effective bond dimension becomes $2^(r w)$ instead of $2^(t w)$.
-
-+ *Computing rank-width*: This is harder than computing treewidth, but approximation algorithms exist @computing-rw.
-
-The main result of @ganian2010 shows that \#SAT can be solved in time $O(2^(3 r w) dot n^2 dot m)$ where $r w$ is the rank-width, which can be exponentially better than clique-width-based methods (since clique-width $<= 2^(r w + 1) - 1$).
+  caption: [Parameterized algorithms for \#SAT.],
+) <tab:complexity>
 
 = Conclusion
 
-Rank-width provides an alternative to treewidth for parameterizing the complexity of \#SAT and related problems. For tensor network practitioners, the key insight is that rank-width measures the "entanglement" across cuts in terms of $bb(F)_2$-rank rather than raw separator size. This can lead to exponential improvements for graph families where treewidth is large but the adjacency structure has low rank.
+Rank-width provides an alternative parameterization for \#SAT. By measuring the $bb(F)_2$-rank of cut matrices rather than separator size, it can yield exponential improvements for graph families with low-rank algebraic structure.
 
 #bibliography("refs.bib", title: "References", style: "ieee")
-
