@@ -118,6 +118,7 @@ The number of equivalence classes for partition $(A, B)$ is at most $2^(op("rank
   }),
   caption: [Four vertices in $A_e$, but only 2 equivalence classes based on their neighborhood in $B_e$.],
 ) <fig:cut-boundary>
+#v(10pt)
 
 In @fig:cut-boundary, vertices $a_1, a_2, a_3$ (purple) all connect only to $b_1$, so they share the same neighborhood $N_B = {b_1}$ and belong to *Class 1*. Vertex $a_4$ (green) connects to both $b_1$ and $b_2$, so $N_B ({a_4}) = {b_1, b_2}$ --- *Class 2*.
 
@@ -176,7 +177,7 @@ Over $bb(F)_2$, this matrix has *rank 1* (all rows identical). The equivalence c
 
 === The Neighborhood Characteristic
 
-Recall from the neighborhood equivalence definition that two sets $S, S' subset.eq X$ are equivalent iff $N(S) inter B = N(S') inter B$. To compute this efficiently, we represent the neighborhood as a *characteristic vector* over $bb(F)_2$.
+The set-theoretic neighborhood equivalence ($N_B (S) = N_B (S')$) is conceptually clean but computationally inconvenient. For the DP algorithm, we can use a related but *coarser* equivalence based on $bb(F)_2$ arithmetic.
 
 #figure(
   rect(
@@ -187,34 +188,35 @@ Recall from the neighborhood equivalence definition that two sets $S, S' subset.
     [
       *Definition (Neighborhood Characteristic)*: Given a set $S subset.eq X$ with characteristic vector $bold(v) in bb(F)_2^n$ (where $v_i = 1$ iff $x_i in S$), the *neighborhood characteristic* is:
       $ bold(n)_S = bold(v)^top M in bb(F)_2^m $
-      where $M$ is the cut matrix. The $j$-th entry is:
-      $ (bold(n)_S)_j = plus.big_(i : x_i in S) M[i,j] mod 2 $
-      This is the characteristic vector of $N(S) inter B$ computed over $bb(F)_2$.
+      where $M$ is the cut matrix. 
     ]
   ),
-  caption: [The neighborhood characteristic is the $bb(F)_2$-representation of the neighborhood.],
-)
+  )
+The $j$-th entry is:
+      $ (bold(n)_S)_j = plus.big_(i : x_i in S) M[i,j] mod 2 $
+      This counts (mod 2) how many vertices in $S$ are adjacent to the $j$-th boundary vertex.
+
 #v(10pt)
 *For \#SAT*: When $S$ is the set of TRUE variables and $B$ is the set of clauses, $(bold(n)_S)_j$ counts (mod 2) how many TRUE variables appear in clause $C_j$.
 
-*Connection to neighborhood equivalence*: Two sets $S, S'$ are neighborhood-equivalent iff they have the same neighborhood characteristic:
-$ S tilde.eq S' <==> bold(n)_S = bold(n)_(S') <==> bold(v)^top M = bold(v')^top M $
+The $bb(F)_2$ equivalence groups more assignments together, which is sufficient for the DP algorithm because it preserves the algebraic structure needed for combining partial solutions:
+$ S tilde.eq_(bb(F)_2) S' <==> bold(n)_S = bold(n)_(S') <==> bold(v)^top M = bold(v')^top M $
 
 === Computing the Neighborhood Characteristic
 
-Let $bold(v) in bb(F)_2^3$ be the characteristic vector of TRUE variables (e.g., $bold(v) = (1,1,0)$ means $x_1 = x_2 = "TRUE", x_3 = "FALSE"$).
+Let $bold(v) in bb(F)_2^3$ be the characteristic vector of TRUE variables (e.g., $bold(v) = (1,1,0)^top$ means $x_1 = x_2 = "TRUE", x_3 = "FALSE"$).
 
 For our dense formula with $M = J$ (all-ones matrix):
-$ bold(n)_S = bold(v)^top M = bold(v)^top mat(1, 1, 1; 1, 1, 1; 1, 1, 1) = (v_1 xor v_2 xor v_3) dot (1, 1, 1) $
+$ bold(n)_S = bold(v)^top M = bold(v)^top mat(1, 1, 1; 1, 1, 1; 1, 1, 1) = (v_1 xor v_2 xor v_3) dot (1, 1, 1)^top $
 
-Since every variable appears in every clause, the neighborhood characteristic depends only on the *parity* of $|S|}$!
+Since every variable appears in every clause, the neighborhood characteristic depends only on the *parity* of $|S|$: odd-sized sets yield $(1,1,1)^top$, even-sized sets yield $(0,0,0)^top$.
 
 #v(10pt)
 #figure(
   table(
     columns: 5,
     stroke: 0.5pt,
-    table.header([*TRUE vars $S$*], [*$bold(v)$*], [*$|S| mod 2$*], [*Neighborhood $bold(n)_S$*], [*Class*]),
+    table.header([*TRUE vars $S$*], [*$bold(v)^top$*], [*$|S| mod 2$*], [*Neighborhood $bold(n)_S^top$*], [*Class*]),
     [$emptyset$], [$(0,0,0)$], [$0$], [$(0,0,0)$], [0],
     [${x_1}$], [$(1,0,0)$], [$1$], [$(1,1,1)$], [1],
     [${x_2}$], [$(0,1,0)$], [$1$], [$(1,1,1)$], [1],
@@ -227,11 +229,21 @@ Since every variable appears in every clause, the neighborhood characteristic de
   caption: [The neighborhood characteristic $bold(n)_S$ determines the equivalence class.],
 ) <tab:k33-equiv>
 
-=== Why is $\{x_1, x_2\}$ in Class 0?
+*Note*: The $bb(F)_2$ equivalence ($bold(n)_S = bold(n)_(S')$) is *coarser* than set-theoretic neighborhood equivalence ($N_B (S) = N_B (S')$). For example, in $K_(3,3)$:
+- $emptyset$ has neighborhood $N_B = emptyset$
+- ${x_1, x_2}$ has neighborhood $N_B = {C_1, C_2, C_3}$
+
+These are *not* set-theoretically equivalent. However, both have $bb(F)_2$ characteristic $(0,0,0)^top$ because ${x_1, x_2}$ contributes $1 xor 1 = 0$ to each clause.
+
+#text(fill: blue)[HM: I'm not sure how to handle the $emptyset$ situation.]
+
+#text(fill: purple)[Claude: This is actually fine for the DP algorithm. What matters is not the actual neighborhood, but how partial assignments *combine* with assignments on the boundary side. When $emptyset$ variables are TRUE, no clauses receive any "TRUE literal" contribution. When ${x_1, x_2}$ are TRUE, each clause receives an *even* number of TRUE literals (2 each), which is equivalent to 0 mod 2. The XOR operation in $bb(F)_2$ correctly captures this: two partial assignments with the same $bb(F)_2$ characteristic will combine identically with any assignment on the other side of the cut. The coarser equivalence is sufficient because the DP only needs to track how partial solutions *interact* across the boundary, not their internal structure.]
+
+=== E.g., why is $\{x_1, x_2\}$ in Class 0?
 
 Let's trace through the computation step by step for assignment $S = {x_1, x_2}$ (i.e., $x_1 = x_2 = "TRUE", x_3 = "FALSE"$):
 
-1. *Characteristic vector*: $bold(v) = (1, 1, 0)$
+1. *Characteristic vector*: $bold(v) = (1, 1, 0)^top$
 
 2. *Matrix multiplication*:
 $ bold(n)_S = bold(v)^top M = mat(1, 1, 0) mat(1, 1, 1; 1, 1, 1; 1, 1, 1) $
@@ -241,7 +253,7 @@ $ bold(n)_S = bold(v)^top M = mat(1, 1, 0) mat(1, 1, 1; 1, 1, 1; 1, 1, 1) $
    - $(bold(n)_S)_2 = 1 dot 1 xor 1 dot 1 xor 0 dot 1 = 1 xor 1 xor 0 = 0$
    - $(bold(n)_S)_3 = 1 dot 1 xor 1 dot 1 xor 0 dot 1 = 1 xor 1 xor 0 = 0$
 
-4. *Result*: $bold(n)_S = (0, 0, 0)$ --- Class 0!
+4. *Result*: $bold(n)_S = (0, 0, 0)^top$ --- Class 0!
 
 Since both $x_1$ and $x_2$ appear in every clause, when both are TRUE, each clause contributes $1 xor 1 = 0$ (even parity). This yields the same neighborhood characteristic as $emptyset$.
 
@@ -264,8 +276,8 @@ Two assignments are *neighborhood-equivalent* if they produce the same neighborh
 
 #v(10pt)
 In this example, only 2 distinct neighborhood characteristics exist:
-- *Class 0* (neighborhood $(0,0,0)$): $emptyset, {x_1,x_2}, {x_1,x_3}, {x_2,x_3}$
-- *Class 1* (neighborhood $(1,1,1)$): ${x_1}, {x_2}, {x_3}, {x_1,x_2,x_3}$
+- *Class 0* (neighborhood $(0,0,0)^top$): $emptyset, {x_1,x_2}, {x_1,x_3}, {x_2,x_3}$
+- *Class 1* (neighborhood $(1,1,1)^top$): ${x_1}, {x_2}, {x_3}, {x_1,x_2,x_3}$
 
 This yields a 4x compression: 8 assignments reduce to 2 equivalence classes.
 
@@ -273,10 +285,7 @@ This yields a 4x compression: 8 assignments reduce to 2 equivalence classes.
 
 Now consider a CNF formula where *each variable appears in exactly one clause*:
 $ psi = C_1 and C_2 and C_3 $
-where:
-- $C_1 = (x_1)$
-- $C_2 = (x_2)$
-- $C_3 = (x_3)$
+where $C_1 = (x_1), C_2 = (x_2), C_3 = (x_3)$.
 
 With variables $X = {x_1, x_2, x_3}$ and clauses $C = {C_1, C_2, C_3}$, each variable appears in exactly one clause, so the incidence graph is a *perfect matching* $M_3$.
 
@@ -326,15 +335,15 @@ The neighborhood characteristic *equals* the characteristic vector itself! This 
   table(
     columns: 4,
     stroke: 0.5pt,
-    table.header([*TRUE variables $S$*], [*$bold(v)$*], [*Neighborhood $bold(n)_S = bold(v)^top I$*], [*Class*]),
-    [$emptyset$], [$(0,0,0)$], [$(0,0,0)$], [$(0,0,0)$],
-    [${x_1}$], [$(1,0,0)$], [$(1,0,0)$], [$(1,0,0)$],
-    [${x_2}$], [$(0,1,0)$], [$(0,1,0)$], [$(0,1,0)$],
-    [${x_3}$], [$(0,0,1)$], [$(0,0,1)$], [$(0,0,1)$],
-    [${x_1, x_2}$], [$(1,1,0)$], [$(1,1,0)$], [$(1,1,0)$],
-    [${x_1, x_3}$], [$(1,0,1)$], [$(1,0,1)$], [$(1,0,1)$],
-    [${x_2, x_3}$], [$(0,1,1)$], [$(0,1,1)$], [$(0,1,1)$],
-    [${x_1, x_2, x_3}$], [$(1,1,1)$], [$(1,1,1)$], [$(1,1,1)$],
+    table.header([*TRUE variables $S$*], [*$bold(v)^top$*], [*Neighborhood $bold(n)_S^top = bold(v)^top I$*], [*Class*]),
+    [$emptyset$], [$(0,0,0)$], [$(0,0,0)$], [0],
+    [${x_1}$], [$(1,0,0)$], [$(1,0,0)$], [1],
+    [${x_2}$], [$(0,1,0)$], [$(0,1,0)$], [2],
+    [${x_3}$], [$(0,0,1)$], [$(0,0,1)$], [3],
+    [${x_1, x_2}$], [$(1,1,0)$], [$(1,1,0)$], [4],
+    [${x_1, x_3}$], [$(1,0,1)$], [$(1,0,1)$], [5],
+    [${x_2, x_3}$], [$(0,1,1)$], [$(0,1,1)$], [6],
+    [${x_1, x_2, x_3}$], [$(1,1,1)$], [$(1,1,1)$], [7],
   ),
   caption: [Each truth assignment has a *unique* neighborhood characteristic --- no compression.],
 ) <tab:matching-equiv>
