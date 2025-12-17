@@ -95,8 +95,8 @@ The number of equivalence classes for partition $(A, B)$ is at most $2^(op("rank
     // Vertices inside - 4 vertices
     circle((-3, 1.5), radius: 0.3, fill: class1-col.lighten(50%), stroke: class1-col + 1.5pt, name: "a1")
     content((-3, 1.5), text(8pt)[$a_1$])
-    circle((0, 2.8), radius: 0.3, fill: class1-col.lighten(50%), stroke: class1-col + 1.5pt, name: "a2")
-    content((0, 2.8), text(8pt)[$a_2$])
+    circle((0, 2), radius: 0.3, fill: class1-col.lighten(50%), stroke: class1-col + 1.5pt, name: "a2")
+    content((0, 2), text(8pt)[$a_2$])
     circle((-3, 0), radius: 0.3, fill: class1-col.lighten(50%), stroke: class1-col + 1.5pt, name: "a3")
     content((-3, 0), text(8pt)[$a_3$])
     circle((-0.5, -0.5), radius: 0.3, fill: class2-col.lighten(50%), stroke: class2-col + 1.5pt, name: "a4")
