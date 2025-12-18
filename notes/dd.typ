@@ -75,7 +75,7 @@ the set of vertices in $B$ adjacent to at least one vertex in $Y$.
 
 Two subsets $Y, Y' subset.eq A$ are *neighborhood-equivalent* w.r.t. the partition $(A, B)$ if $N_B (Y) = N_B (Y')$.
 
-Note: The equivalence relation depends on the choice of partition. Each edge $e$ of the rank decomposition induces a partition $(A_e, B_e)$, and thus a different equivalence relation on subsets of $A_e$.
+
 
 The number of equivalence classes for partition $(A, B)$ is at most $2^(op("rank")(M_A))$, since each class corresponds to a distinct vector in the row space of $M_A$ @bui-xuan2011. This enables DP compression: instead of $2^(|A|)$ subsets, we track at most $2^(op("rw")(G))$ classes at each node.
 
@@ -116,17 +116,26 @@ The number of equivalence classes for partition $(A, B)$ is at most $2^(op("rank
     content((-1.5, -1.8), text(8pt, class1-col)[Class 1: $N_B = {b_1}$])
     content((3, -1.8), text(8pt, class2-col)[Class 2: $N_B = {b_1, b_2}$])
   }),
-  caption: [Four vertices in $A_e$, but only 2 equivalence classes based on their neighborhood in $B_e$.],
 ) <fig:cut-boundary>
 #v(10pt)
 
 In @fig:cut-boundary, vertices $a_1, a_2, a_3$ (purple) all connect only to $b_1$, so they share the same neighborhood $N_B = {b_1}$ and belong to *Class 1*. Vertex $a_4$ (green) connects to both $b_1$ and $b_2$, so $N_B ({a_4}) = {b_1, b_2}$ --- *Class 2*.
 
-With 4 vertices, there are $2^4 = 16$ possible subsets of $A_e$. But since $a_1, a_2, a_3$ are interchangeable (same neighborhood), many subsets collapse:
-- ${a_1}, {a_2}, {a_3}$ all have neighborhood ${b_1}$ --- same class
-- ${a_1, a_2}, {a_1, a_3}, {a_2, a_3}$ all have neighborhood ${b_1}$ --- same class
+#v(10pt)
+#figure(
+  table(
+    columns: 3,
+    stroke: 0.5pt,
+    table.header([*Neighborhood*], [*Subsets*], [*Count*]),
+    [$emptyset$], [$emptyset$], [1],
+    [${b_1}$], [${a_1}, {a_2}, {a_3}, {a_1, a_2}, {a_1, a_3}, {a_2, a_3}, {a_1, a_2, a_3}$], [7],
+    [${b_1, b_2}$], [any subset containing $a_4$], [8],
+  ),
+)
 
-== Example: Dense Formula --- Where Neighborhood Equivalence Helps
+*Why this helps*: When computing \#SAT via dynamic programming at each step, we need to track how partial assignments interact with clauses not yet fully determined. If two partial assignments have the same neighborhood, they will combine identically with any assignment to the remaining variables. Instead of tracking $2^(|A_e|)$ partial assignments separately, we only track $O(2^k)$ equivalence classes, where $k$ is the rank-width.
+
+== Example: $K_(3,3)$ 
 
 Consider a CNF formula where *every variable appears in every clause*:
 $ phi = C_1 and C_2 and C_3 $
