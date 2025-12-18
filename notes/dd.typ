@@ -1,8 +1,17 @@
 #import "@preview/clear-iclr:0.7.0": *
 #import "@preview/cetz:0.4.2": canvas, draw
+#import "@preview/ctheorems:1.1.3": thmbox, thmrules
+
+// Theorem environments
+#let definition = thmbox("definition", "Definition", fill: rgb("#f0f8ff"), stroke: rgb("#4a90d9"))
+#let proposition = thmbox("proposition", "Proposition", fill: rgb("#fff8e8"), stroke: rgb("#c90"))
+#let remark = thmbox("remark", "Remark", fill: rgb("#e8f8e8"), stroke: rgb("#4a4"))
+#let algorithm = thmbox("algorithm", "Algorithm", fill: rgb("#f5f5f5"), stroke: rgb("#999"))
+
+#show: thmrules
 
 #show: iclr.with(
-  title: [Rank-Width for \#SAT],
+  title: [A Tutorial on Rank-Width for \#SAT],
   authors: (
     (
       names: ([Anonymous],),
@@ -13,7 +22,7 @@
   ),
   keywords: ("rank-width", "SAT", "treewidth", "parameterized algorithms"),
   abstract: [
-    We provide a pedagogical introduction to rank-width and its application to the propositional model counting problem \#SAT. Through a concrete example, we demonstrate how rank-width can lead to exponential speedups over treewidth-based approaches for certain graph families.
+    We introduce rank-width as a graph parameter for the model counting problem \#SAT. The core idea is neighborhood equivalence: partial assignments with the same $bb(F)_2$ characteristic interact identically across any cut, enabling state-space compression from $2^n$ to $2^(op("rw"))$.
   ],
   accepted: none,
   bibliography: none,
@@ -21,11 +30,12 @@
 
 = Introduction
 
-Ganian, Hliněný, and Obdržálek @ganian2010 provide a \#SAT algorithm with runtime single-exponential in the _rank-width_ of the incidence graph. The key relationship is $op("rw")(G) <= op("tw")(G) + 1$, but rank-width can be exponentially smaller for certain graph families.
+The *model counting problem* \#SAT asks: given a Boolean formula $phi$, how many satisfying truth assignments exist? While \#P-complete in general, efficient algorithms exist when the formula's structure is restricted.
+Ganian, Hliněný, and Obdržálek @ganian2010 provide a \#SAT algorithm with runtime single-exponential in the _rank-width_ of the incidence graph. *Treewidth* measures how "tree-like" a graph is; it can be large for dense graphs, but rank-width can be exponentially smaller for certain graph families.
 
 = Rank Decomposition and Rank-Width
 
-A *rank decomposition* $(T, L)$ of graph $G = (V, E)$ consists of a subcubic tree $T$ and a bijection $L$ from leaves to $V$. Each edge $e in T$ induces a partition $(A_e, B_e)$ of $V$ ($B_e := V - A_e$).
+A *rank decomposition* $(T, L)$ of graph $G = (V, E)$ consists of a subcubic tree $T$ (every node has degree $<= 3$) and a bijection $L$ from leaves to $V$. Each edge $e in T$ induces a partition $(A_e, B_e)$ of $V$: removing $e$ splits the tree into two subtrees, with $A_e$ and $B_e$ being the leaves in each.
 
 #figure(
   canvas(length: 1cm, {
@@ -60,7 +70,7 @@ A *rank decomposition* $(T, L)$ of graph $G = (V, E)$ consists of a subcubic tre
     content((-2, -3.8), text(8pt)[$A_e = {v_1, v_2}$])
     content((2, -3.8), text(8pt)[$B_e = {v_3, v_4}$])
   }),
-  caption: [A rank decomposition. Removing edge $e$ partitions the leaves into $A_e$ and $B_e$.],
+  // caption: [A rank decomposition. Removing edge $e$ partitions the leaves into $A_e$ and $B_e$.],
 ) <fig:rank-decomp>
 
 #v(10pt)
@@ -69,15 +79,11 @@ $ op("rw")(G) = min_((T,L)) max_(e in T) op("rank")_(bb(F)_2)(M_(A_e)) $
 
 = Neighborhood Equivalence
 
-Let $G = (V, E)$ be a graph. For any partition $(A, B)$ of $V$ and any $Y subset.eq A$, define:
+Let $G = (V, E)$ be a graph. For any partition $(A, B)$ of $V$ and any $Y subset.eq A$, define the *neighborhood* of $Y$ with respect to $B$:
 $ N_B (Y) = {v in B : exists y in Y, {y, v} in E} $
 the set of vertices in $B$ adjacent to at least one vertex in $Y$.
 
 Two subsets $Y, Y' subset.eq A$ are *neighborhood-equivalent* w.r.t. the partition $(A, B)$ if $N_B (Y) = N_B (Y')$.
-
-
-
-The number of equivalence classes for partition $(A, B)$ is at most $2^(op("rank")(M_A))$, since each class corresponds to a distinct vector in the row space of $M_A$ @bui-xuan2011. This enables DP compression: instead of $2^(|A|)$ subsets, we track at most $2^(op("rw")(G))$ classes at each node.
 
 #figure(
   canvas(length: 1cm, {
@@ -88,10 +94,10 @@ The number of equivalence classes for partition $(A, B)$ is at most $2^(op("rank
     let class2-col = rgb("#27ae60")  // green for class 2
     // Inside region
     rect((-4, -2.5), (1, 2.5), fill: inside-col.lighten(90%), stroke: inside-col)
-    content((-1.5, 2.8), text(9pt, inside-col)[$A_e$])
+    content((-1.5, 2.8), text(9pt, inside-col)[$A$])
     // Boundary region
     rect((1.5, -2.5), (4.5, 2.5), fill: boundary-col.lighten(90%), stroke: boundary-col)
-    content((3, 2.8), text(9pt, boundary-col)[$B_e$])
+    content((3, 2.8), text(9pt, boundary-col)[$B$])
     // Vertices inside - 4 vertices
     circle((-3, 1.5), radius: 0.3, fill: class1-col.lighten(50%), stroke: class1-col + 1.5pt, name: "a1")
     content((-3, 1.5), text(8pt)[$a_1$])
@@ -133,9 +139,11 @@ In @fig:cut-boundary, vertices $a_1, a_2, a_3$ (purple) all connect only to $b_1
   ),
 )
 
-*Why this helps*: When computing \#SAT via dynamic programming at each step, we need to track how partial assignments interact with clauses not yet fully determined. If two partial assignments have the same neighborhood, they will combine identically with any assignment to the remaining variables. Instead of tracking $2^(|A_e|)$ partial assignments separately, we only track $O(2^k)$ equivalence classes, where $k$ is the rank-width.
+This property enables efficient \#SAT computation. In a dynamic programming approach, at each step we track how partial assignments interact with clauses not yet fully determined. Partial assignments with identical neighborhoods combine identically with any assignment to the remaining variables. Consequently, instead of tracking $2^(|A_e|)$ partial assignments separately, we track only $O(2^k)$ equivalence classes, where $k$ is the rank-width.
 
 == Example: $K_(3,3)$ 
+
+To apply rank-width to \#SAT, we construct the *incidence graph* of the CNF formula: vertices represent variables and clauses, with an edge between variable $x_i$ and clause $C_j$ if $x_i$ appears (positively or negatively) in $C_j$. The rank-width of this incidence graph determines the algorithm's efficiency.
 
 Consider a CNF formula where *every variable appears in every clause*:
 $ phi = C_1 and C_2 and C_3 $
@@ -188,28 +196,31 @@ Over $bb(F)_2$, this matrix has *rank 1* (all rows identical). The equivalence c
 
 The set-theoretic neighborhood equivalence ($N_B (S) = N_B (S')$) is conceptually clean but computationally inconvenient. For the DP algorithm, we can use a related but *coarser* equivalence based on $bb(F)_2$ arithmetic.
 
-#figure(
-  rect(
-    width: 100%,
-    inset: 12pt,
-    fill: rgb("#f0f8ff"),
-    stroke: rgb("#4a90d9"),
-    [
-      *Definition (Neighborhood Characteristic)*: Given a set $S subset.eq X$ with characteristic vector $bold(v) in bb(F)_2^n$ (where $v_i = 1$ iff $x_i in S$), the *neighborhood characteristic* is:
-      $ bold(n)_S = bold(v)^top M in bb(F)_2^m $
-      where $M$ is the cut matrix. 
-    ]
-  ),
-  )
+#definition("Neighborhood Characteristic")[
+  Given a set $S subset.eq X$ with characteristic vector $bold(v) in bb(F)_2^n$ (where $v_i = 1$ iff $x_i in S$), the *neighborhood characteristic* is:
+  $ bold(n)_S = bold(v)^top M in bb(F)_2^m $
+  where $M$ is the cut matrix.
+]
+
 The $j$-th entry is:
-      $ (bold(n)_S)_j = plus.big_(i : x_i in S) M[i,j] mod 2 $
-      This counts (mod 2) how many vertices in $S$ are adjacent to the $j$-th boundary vertex.
+      $ (bold(n)_S)_j = plus.big_(i : x_i in S) M[i,j] $
+      This counts (in $bb(F)_2$, i.e., mod 2) how many vertices in $S$ are adjacent to the $j$-th boundary vertex.
 
 #v(10pt)
-*For \#SAT*: When $S$ is the set of TRUE variables and $B$ is the set of clauses, $(bold(n)_S)_j$ counts (mod 2) how many TRUE variables appear in clause $C_j$.
+*For \#SAT*: When $S$ is the set of TRUE variables and $B$ is the set of clauses, $(bold(n)_S)_j$ counts (mod 2) how many variables in $S$ appear in clause $C_j$. Note that this captures *incidence* (which variables appear in which clauses), not *satisfaction* (whether the clause is satisfied). The incidence graph does not encode literal polarity --- whether a variable appears positively ($x_i$) or negatively ($not x_i$). Polarity information is tracked separately in the DP state; the neighborhood characteristic determines how partial assignments *interact across the cut*, while satisfaction depends on the specific literals.
 
-The $bb(F)_2$ equivalence groups more assignments together, which is sufficient for the DP algorithm because it preserves the algebraic structure needed for combining partial solutions:
+The $bb(F)_2$ equivalence groups more assignments together than set-theoretic neighborhood equivalence. Two sets are $bb(F)_2$-equivalent iff they have the same neighborhood characteristic:
 $ S tilde.eq_(bb(F)_2) S' <==> bold(n)_S = bold(n)_(S') <==> bold(v)^top M = bold(v')^top M $
+
+This holds iff $bold(v) - bold(v)' in ker(M)$, so the number of $bb(F)_2$ equivalence classes is exactly $2^(op("rank")(M))$ @bui-xuan2011. This enables DP compression: instead of tracking $2^(|A|)$ subsets, we track at most $2^(op("rw")(G))$ equivalence classes at each node.
+
+This coarser equivalence is sufficient for the DP algorithm because it is *closed under the join operation*. The DP combines partial solutions using XOR (addition in $bb(F)_2$). When we join two partial assignments $S_1$ and $S_2$ from different subtrees, their combined neighborhood is:
+$ bold(n)_(S_1 union S_2) = bold(n)_(S_1) xor bold(n)_(S_2) $
+
+If $S_1 tilde.eq_(bb(F)_2) S'_1$ (same neighborhood characteristic), then for any $S_2$:
+$ bold(n)_(S_1 union S_2) = bold(n)_(S_1) xor bold(n)_(S_2) = bold(n)_(S'_1) xor bold(n)_(S_2) = bold(n)_(S'_1 union S_2) $
+
+Thus, equivalent partial assignments remain equivalent after joining, and may be grouped together throughout the DP computation.
 
 === Computing the Neighborhood Characteristic
 
@@ -238,57 +249,9 @@ Since every variable appears in every clause, the neighborhood characteristic de
   caption: [The neighborhood characteristic $bold(n)_S$ determines the equivalence class.],
 ) <tab:k33-equiv>
 
-*Note*: The $bb(F)_2$ equivalence ($bold(n)_S = bold(n)_(S')$) is *coarser* than set-theoretic neighborhood equivalence ($N_B (S) = N_B (S')$). For example, in $K_(3,3)$:
-- $emptyset$ has neighborhood $N_B = emptyset$
-- ${x_1, x_2}$ has neighborhood $N_B = {C_1, C_2, C_3}$
-
-These are *not* set-theoretically equivalent. However, both have $bb(F)_2$ characteristic $(0,0,0)^top$ because ${x_1, x_2}$ contributes $1 xor 1 = 0$ to each clause.
-
-#text(fill: blue)[HM: I'm not sure how to handle the $emptyset$ situation.]
-
-#text(fill: purple)[Claude: This is actually fine for the DP algorithm. What matters is not the actual neighborhood, but how partial assignments *combine* with assignments on the boundary side. When $emptyset$ variables are TRUE, no clauses receive any "TRUE literal" contribution. When ${x_1, x_2}$ are TRUE, each clause receives an *even* number of TRUE literals (2 each), which is equivalent to 0 mod 2. The XOR operation in $bb(F)_2$ correctly captures this: two partial assignments with the same $bb(F)_2$ characteristic will combine identically with any assignment on the other side of the cut. The coarser equivalence is sufficient because the DP only needs to track how partial solutions *interact* across the boundary, not their internal structure.]
-
-=== E.g., why is $\{x_1, x_2\}$ in Class 0?
-
-Let's trace through the computation step by step for assignment $S = {x_1, x_2}$ (i.e., $x_1 = x_2 = "TRUE", x_3 = "FALSE"$):
-
-1. *Characteristic vector*: $bold(v) = (1, 1, 0)^top$
-
-2. *Matrix multiplication*:
-$ bold(n)_S = bold(v)^top M = mat(1, 1, 0) mat(1, 1, 1; 1, 1, 1; 1, 1, 1) $
-
-3. *For each clause $C_j$*, compute $(bold(n)_S)_j = v_1 dot M[1,j] xor v_2 dot M[2,j] xor v_3 dot M[3,j]$:
-   - $(bold(n)_S)_1 = 1 dot 1 xor 1 dot 1 xor 0 dot 1 = 1 xor 1 xor 0 = 0$
-   - $(bold(n)_S)_2 = 1 dot 1 xor 1 dot 1 xor 0 dot 1 = 1 xor 1 xor 0 = 0$
-   - $(bold(n)_S)_3 = 1 dot 1 xor 1 dot 1 xor 0 dot 1 = 1 xor 1 xor 0 = 0$
-
-4. *Result*: $bold(n)_S = (0, 0, 0)^top$ --- Class 0!
-
-Since both $x_1$ and $x_2$ appear in every clause, when both are TRUE, each clause contributes $1 xor 1 = 0$ (even parity). This yields the same neighborhood characteristic as $emptyset$.
-
-=== Implications for \#SAT
-
-Two assignments are *neighborhood-equivalent* if they produce the same neighborhood characteristic. Equivalent assignments interact identically with the boundary vertices during the DP computation.
-
-#figure(
-  rect(
-    width: 100%,
-    inset: 12pt,
-    fill: rgb("#f8fff8"),
-    stroke: rgb("#4a4"),
-    [
-      *Implication*: When counting satisfying assignments, we only need to track *how many* assignments fall into each equivalence class, not which specific assignments. This reduces the state space from $2^n$ to $2^k$ where $k$ is the rank-width.
-    ]
-  ),
-  caption: [Equivalence classes enable efficient counting.],
-)
-
-#v(10pt)
-In this example, only 2 distinct neighborhood characteristics exist:
-- *Class 0* (neighborhood $(0,0,0)^top$): $emptyset, {x_1,x_2}, {x_1,x_3}, {x_2,x_3}$
-- *Class 1* (neighborhood $(1,1,1)^top$): ${x_1}, {x_2}, {x_3}, {x_1,x_2,x_3}$
-
-This yields a 4x compression: 8 assignments reduce to 2 equivalence classes.
+#remark[
+  The $bb(F)_2$ equivalence is coarser than set-theoretic neighborhood equivalence. For instance, $emptyset$ has $N_B = emptyset$ while ${x_1, x_2}$ has $N_B = {C_1, C_2, C_3}$; these are not set-theoretically equivalent, yet both have characteristic $(0,0,0)^top$ since ${x_1, x_2}$ contributes $1 xor 1 = 0$ to each clause. This coarser grouping suffices because the DP algorithm only requires that partial assignments with identical characteristics combine identically with any boundary assignment.
+]
 
 == Counterexample: Sparse Formula --- No Compression
 
@@ -327,24 +290,14 @@ With variables $X = {x_1, x_2, x_3}$ and clauses $C = {C_1, C_2, C_3}$, each var
   }),
   caption: [Incidence graph $M_3$: each variable connected to exactly one clause.],
 ) <fig:m3-graph>
-
 #v(10pt)
-The cut matrix separating variables from clauses is the *identity matrix*:
-$ M = mat(1, 0, 0; 0, 1, 0; 0, 0, 1) $
-
-Over $bb(F)_2$, this has *rank 3* (full rank). Let's compute the neighborhood characteristics:
-
-For any set $S$ with characteristic vector $bold(v)$:
-$ bold(n)_S = bold(v)^top I = bold(v) $
-
-The neighborhood characteristic *equals* the characteristic vector itself! This means every distinct set has a distinct neighborhood.
-
+The cut matrix is the *identity*: $M = I_3$ with $op("rank") = 3$ (full rank). Since $bold(n)_S = bold(v)^top I = bold(v)$, every assignment has a unique neighborhood.
 #v(10pt)
 #figure(
   table(
     columns: 4,
     stroke: 0.5pt,
-    table.header([*TRUE variables $S$*], [*$bold(v)^top$*], [*Neighborhood $bold(n)_S^top = bold(v)^top I$*], [*Class*]),
+    table.header([*TRUE variables $S$*], [*$bold(v)^top$*], [*Neighborhood $bold(n)_S^top$*], [*Class*]),
     [$emptyset$], [$(0,0,0)$], [$(0,0,0)$], [0],
     [${x_1}$], [$(1,0,0)$], [$(1,0,0)$], [1],
     [${x_2}$], [$(0,1,0)$], [$(0,1,0)$], [2],
@@ -354,105 +307,54 @@ The neighborhood characteristic *equals* the characteristic vector itself! This 
     [${x_2, x_3}$], [$(0,1,1)$], [$(0,1,1)$], [6],
     [${x_1, x_2, x_3}$], [$(1,1,1)$], [$(1,1,1)$], [7],
   ),
-  caption: [Each truth assignment has a *unique* neighborhood characteristic --- no compression.],
+  caption: [Sparse formula: each assignment has a unique neighborhood --- no compression.],
 ) <tab:matching-equiv>
 
-*Key observation*: Every truth assignment has a *distinct* neighborhood characteristic! The 8 assignments map to 8 different equivalence classes.
-
-*Why?* Each variable $x_i$ only appears in clause $C_i$. Setting $x_i$ to TRUE affects *only* $C_i$, independently of other variables. The clauses can distinguish every assignment because no two variables "overlap" in their clause memberships.
-
-#figure(
-  rect(
-    width: 100%,
-    inset: 12pt,
-    fill: rgb("#fff0f0"),
-    stroke: rgb("#c44"),
-    [
-      *Why sparse formulas don't benefit*: When each variable appears in a unique clause, the cut matrix is the identity (full rank). Every truth assignment produces a unique neighborhood characteristic:
-      $ "equivalence classes" = 2^(op("rank")(I_n)) = 2^n = "number of assignments" $
-      No compression from neighborhood equivalence!
-    ]
-  ),
-  caption: [Sparse variable-clause structure prevents algebraic compression.],
-)
-
-== Comparison: Why Formula Structure Matters
-
-#figure(
-  table(
-    columns: 5,
-    stroke: 0.5pt,
-    table.header([*Formula Type*], [*Cut Matrix*], [*Rank*], [*Equiv. Classes*], [*Compression*]),
-    [Dense (every var in every clause)], [All-ones $J$], [$1$], [$2^1 = 2$], [$2^(n-1) times$],
-    [Sparse (each var in one clause)], [Identity $I$], [$n$], [$2^n$], [None],
-  ),
-  caption: [Dense formulas enable compression; sparse formulas do not.],
-) <tab:compression-comparison>
-
-The contrast is clear: dense formulas (where variables share clauses) have low-rank cut matrices, while sparse formulas (where variables appear in disjoint clauses) have full-rank cut matrices. This determines whether neighborhood equivalence provides any benefit for \#SAT.
-
-== Scaling to $K_(n,n)$
-
-The $K_(3,3)$ example generalizes to $K_(n,n)$:
-#v(10pt)
-#figure(
-  table(
-    columns: 4,
-    stroke: 0.5pt,
-    table.header([*Graph*], [*Treewidth*], [*Rank-width*], [*Compression*]),
-    [$K_(n,n)$], [$n$], [$1$], [$2^(n-1) times$],
-  ),
-  caption: [Complete bipartite graphs have constant rank-width but linear treewidth.],
-) <tab:knn>
-
-For $n = 100$: treewidth-based algorithms require $2^(100) approx 10^(30)$ states, while rank-width-based algorithms require only $2^1 = 2$ states.
-
 = The DP Algorithm
+#text(fill: blue)[HM: below not polished yet.]
 
 The Ganian et al. algorithm @ganian2010 processes the rank decomposition tree bottom-up, using neighborhood equivalence to compress the state space.
 
-== Overview
-
-The algorithm traverses the rank decomposition $(T, L)$ from leaves to root. At each node, it maintains a table mapping *neighborhood classes* to *model counts*.
-
-#figure(
-  rect(
-    width: 100%,
-    inset: 12pt,
-    fill: rgb("#fff8e8"),
-    stroke: rgb("#c90"),
-    [
-      *Key Idea*: For a subtree with vertex set $A$ and boundary $B := V - A$:
-      - Group partial assignments by their neighborhood equivalence class
-      - Track how many satisfying assignments fall into each class
-      - At most $2^(rho_G (A))$ classes to track (not $2^(|A|)$)
-    ]
-  ),
-  caption: [The compression principle behind the DP algorithm.],
-)
-
 == State Representation
 
-At each edge $e$ of the decomposition tree (separating $A_e$ from $B_e$):
-- *State*: A vector $bold(s) in bb(F)_2^(|B_e|)$ representing the neighborhood characteristic on the boundary
-- *Table*: $T_e [bold(s)]$ = number of partial truth assignments to variables in $A_e$ that:
-  1. Satisfy all clauses fully contained in $A_e$
-  2. Have neighborhood characteristic $bold(s)$ on the boundary
+The actual algorithm @ganian2010 uses *signed graphs* to distinguish positive and negative literal occurrences. The signed graph $F_phi$ has two edge sets: $E^+$ (variable appears positively in clause) and $E^-$ (variable appears negatively). Crucially, *both signed components share the same decomposition tree* --- they differ only in their labeling functions at each node.
 
-Since equivalent neighborhood characteristics collapse, the table has at most $2^(rho_G (A_e))$ entries.
+At each node $z$ of this shared parse tree:
+
+- *State*: A 4-tuple of subspaces $(Sigma^+, Sigma^-, Pi^+, Pi^-)$ over $bb(F)_2^t$ where $t = max(t^+, t^-)$ is the signed rank-width.
+  - $Sigma^+$: subspace generated by labels of TRUE variables (positive literal contribution)
+  - $Sigma^-$: subspace generated by labels of FALSE variables (negative literal contribution)
+  - $Pi^+, Pi^-$: *expectation* subspaces --- encode which clause labels must be "covered" by the rest of the formula
+- *Table*: $T_z [Sigma^+, Sigma^-, Pi^+, Pi^-]$ = number of partial assignments of *shape* $(Sigma^+, Sigma^-, Pi^+, Pi^-)$
+
+An assignment $nu$ has shape $(Sigma^+, Sigma^-, Pi^+, Pi^-)$ if: (1) $Sigma^+, Sigma^-$ are generated by the appropriate labels, and (2) every clause in the current subtree is either already satisfied OR its label is not orthogonal to $Pi^+$ or $Pi^-$ (i.e., it is "expected" to be satisfied later).
+
+=== The Expectation Mechanism
+
+Tracking *expectations* allows efficient composition. When joining two subtrees, it is unnecessary to enumerate all ways clauses might be satisfied; one need only verify that the expectations from one side match the contributions from the other.
+
+#proposition("Expectation Matching")[
+  An assignment $nu$ is satisfying for $phi$ iff there exist subspaces such that the left partial assignment has shape $(Sigma^+, Sigma^-, Pi^+, Pi^-)$ and the right has shape $(Pi^+, Pi^-, Sigma^+, Sigma^-)$ --- the expectations and contributions are swapped.
+]
+
+This "expectation" technique, introduced in @bui-xuan2011 for dominating set, is essential for achieving single-exponential runtime in rank-width.
 
 == Processing Nodes
 
 The algorithm processes three types of nodes:
 
-=== Leaf Nodes (Variable Introduction)
+=== Leaf Nodes
 
-For a leaf corresponding to variable $v$ with boundary $B$:
-- Compute $N(v) inter B$ (neighbors of $v$ in the boundary)
-- $T[bold(0)]$ += 1 (assignment $v = 0$, no neighborhood contribution)
-- $T[chi_(N(v) inter B)]$ += 1 (assignment $v = 1$, contributes its neighborhood)
+The algorithm processes *two types* of leaves differently:
 
-where $chi_S$ is the characteristic vector of set $S$.
+*Variable leaf* $ell$: For each variable, we record both possible assignments ($ell = 0$ or $ell = 1$). Each assignment contributes to a neighborhood class based on its label vector. Writing $op("span")(bold(1))$ for the 1-dimensional subspace spanned by the label vector:
+- $T[op("span")(bold(1)), emptyset, Pi^+, Pi^-]$ += 1 for all $Pi^+, Pi^-$ (assignment $ell = 1$)
+- $T[emptyset, op("span")(bold(1)), Pi^+, Pi^-]$ += 1 for all $Pi^+, Pi^-$ (assignment $ell = 0$)
+
+*Clause leaf* $c$: A clause starts unsatisfied and requires either a satisfying literal or an "expectation" that it will be satisfied later:
+- $T[emptyset, emptyset, Pi^+, Pi^-]$ += 1 only for subspaces $Pi^+, Pi^-$ where at least one is *not orthogonal* to the label vector $bold(1)$
+
+The orthogonality condition encodes clause satisfaction: if a clause's label is orthogonal to all expected satisfying contributions, the clause cannot be satisfied.
 
 === Internal Nodes (Join)
 
@@ -463,83 +365,231 @@ This is a *convolution over $bb(F)_2$* --- the XOR reflects that neighborhoods c
 
 === Root Node (Final Count)
 
-At the root, sum over all states that correspond to *satisfied* formulas:
-$ \#op("SAT")(phi) = sum_(bold(s) : "all clauses satisfied") T_("root")[bold(s)] $
+At the root, sum over all states where *no expectations remain* (all clauses must be satisfied without relying on future contributions):
+$ \#op("SAT")(phi) = sum_(Sigma^+, Sigma^-) T_("root")[Sigma^+, Sigma^-, emptyset, emptyset] $
 
-== Complexity Analysis
+The condition $Pi^+ = Pi^- = emptyset$ ensures that every clause has been satisfied by some literal in the complete assignment --- no clause is left "expecting" satisfaction from a non-existent remaining part of the formula.
 
-#figure(
-  table(
-    columns: 3,
-    stroke: 0.5pt,
-    table.header([*Component*], [*Size*], [*For rank-width $k$*]),
-    [Equivalence classes], [$2^(rho_G (A_e))$], [$<= 2^k$],
-    [Table size per node], [$O(2^k)$], [$O(2^k)$],
-    [Join operation], [$O(|T|^2)$], [$O(2^(2k))$],
-    [Total (naive)], [$O(n dot 2^(2k))$], [$O(n dot 2^(2k))$],
-  ),
-  caption: [DP complexity depends on the rank-width $k$.],
-) <tab:dp-complexity>
+// == Worked Example: Full DP on $K_(3,3)$ with Signed Graphs
 
-The actual complexity from @ganian2010 is $O(2^(3k) dot n^2 dot m)$ where $n$ is the number of variables and $m$ is the number of clauses.
+// We demonstrate the complete algorithm on the $K_(3,3)$ formula:
+// $ phi = (x_1 or x_2 or x_3) and (not x_1 or x_2 or x_3) and (x_1 or not x_2 or not x_3) $
 
-= Additional Graph Families
+// This formula has exactly 5 satisfying assignments: ${x_2}, {x_3}, {x_1, x_2}, {x_1, x_3}, {x_1, x_2, x_3}$.
 
-#figure(
-  table(
-    columns: 4,
-    stroke: 0.5pt,
-    table.header([*Graph Family*], [*Treewidth*], [*Rank-width*], [*Advantage*]),
-    [$K_(n,n)$ (complete bipartite)], [$n$], [$1$], [Exponential],
-    [$K_n$ (complete)], [$n-1$], [$ceil(n/2) - 1$], [None],
-    [$P_n$ (path)], [$1$], [$1$], [None],
-    [$C_n$ (cycle)], [$2$], [$2$], [None],
-    [Grid $G_(m times n)$], [$min(m,n)$], [$Theta(min(m,n))$], [None],
-  ),
-  caption: [Comparison of treewidth and rank-width for various graph families.],
-) <tab:graph-comparison>
+// === Step 1: Construct the Signed Graph
 
-Rank-width captures algebraic structure (low-rank adjacency matrices) rather than combinatorial sparsity. Dense graphs with regular structure can have low rank-width.
+// The signed incidence graph $F_phi$ has vertices $V = {x_1, x_2, x_3, C_1, C_2, C_3}$ and two edge sets based on literal polarity:
 
-= Computing Rank-Width
+// - $E^+ = {(x_1, C_1), (x_2, C_1), (x_3, C_1), (x_2, C_2), (x_3, C_2), (x_1, C_3)}$
+// - $E^- = {(x_1, C_2), (x_2, C_3), (x_3, C_3)}$
 
-Computing rank-width exactly is NP-hard @oum2006. Several algorithmic approaches exist:
+// #figure(
+//   canvas(length: 1cm, {
+//     import draw: *
+//     let var-col = rgb("#4a90d9")
+//     let clause-col = rgb("#e07b53")
+//     let pos-col = rgb("#27ae60")
+//     let neg-col = rgb("#9b59b6")
+//     // Variables (left side)
+//     circle((-2.5, 1.5), radius: 0.35, fill: var-col.lighten(70%), stroke: var-col + 1.5pt, name: "x1")
+//     content((-2.5, 1.5), text(9pt)[$x_1$])
+//     circle((-2.5, 0), radius: 0.35, fill: var-col.lighten(70%), stroke: var-col + 1.5pt, name: "x2")
+//     content((-2.5, 0), text(9pt)[$x_2$])
+//     circle((-2.5, -1.5), radius: 0.35, fill: var-col.lighten(70%), stroke: var-col + 1.5pt, name: "x3")
+//     content((-2.5, -1.5), text(9pt)[$x_3$])
+//     // Clauses (right side)
+//     circle((2.5, 1.5), radius: 0.35, fill: clause-col.lighten(70%), stroke: clause-col + 1.5pt, name: "c1")
+//     content((2.5, 1.5), text(9pt)[$C_1$])
+//     circle((2.5, 0), radius: 0.35, fill: clause-col.lighten(70%), stroke: clause-col + 1.5pt, name: "c2")
+//     content((2.5, 0), text(9pt)[$C_2$])
+//     circle((2.5, -1.5), radius: 0.35, fill: clause-col.lighten(70%), stroke: clause-col + 1.5pt, name: "c3")
+//     content((2.5, -1.5), text(9pt)[$C_3$])
+//     // Positive edges (solid green) - C1: all positive
+//     line("x1", "c1", stroke: pos-col + 1pt)
+//     line("x2", "c1", stroke: pos-col + 1pt)
+//     line("x3", "c1", stroke: pos-col + 1pt)
+//     // C2: x2, x3 positive
+//     line("x2", "c2", stroke: pos-col + 1pt)
+//     line("x3", "c2", stroke: pos-col + 1pt)
+//     // C3: x1 positive
+//     line("x1", "c3", stroke: pos-col + 1pt)
+//     // Negative edges (dashed purple) - C2: x1 negative
+//     line("x1", "c2", stroke: (paint: neg-col, thickness: 1pt, dash: "dashed"))
+//     // C3: x2, x3 negative
+//     line("x2", "c3", stroke: (paint: neg-col, thickness: 1pt, dash: "dashed"))
+//     line("x3", "c3", stroke: (paint: neg-col, thickness: 1pt, dash: "dashed"))
+//     // Legend
+//     content((0, -2.5), text(8pt)[#text(pos-col)[solid] = $E^+$, #text(neg-col)[dashed] = $E^-$])
+//   }),
+//   caption: [Signed incidence graph for $K_(3,3)$: positive and negative literal edges.],
+// ) <fig:k33-signed>
 
-#v(10pt)
-#figure(
-  table(
-    columns: 3,
-    stroke: 0.5pt,
-    table.header([*Approach*], [*Complexity*], [*Notes*]),
-    [Exact], [$O(3^n)$], [Brute force],
-    [FPT], [$O(f(k) dot n^3)$], [Fixed-parameter tractable],
-    [Approximation], [Polynomial], [$(3k+1)$-approximation @oum2006],
-  ),
-  caption: [Algorithms for computing rank-width.],
-)
+// === Step 2: Compute Signed Cut Matrices
 
-The cut-rank function $rho(A) = op("rank")_(bb(F)_2)(M_A)$ satisfies two key properties:
-- *Symmetric*: $rho(A) = rho(B)$
-- *Submodular*: $rho(A) + rho(B) >= rho(A inter B) + rho(A union B)$
+// For the partition $(X, C) = ({x_1, x_2, x_3}, {C_1, C_2, C_3})$, the signed cut matrices are:
 
-Submodularity enables efficient approximation algorithms.
+// $ M^+ = mat(1, 0, 1; 1, 1, 0; 1, 1, 0) quad M^- = mat(0, 1, 0; 0, 0, 1; 0, 0, 1) $
 
-= Complexity Comparison
+// where $M^+[i,j] = 1$ iff $x_i$ appears positively in $C_j$, and $M^-[i,j] = 1$ iff $x_i$ appears negatively in $C_j$.
 
-#figure(
-  table(
-    columns: 3,
-    stroke: 0.5pt,
-    table.header([*Algorithm*], [*Time Complexity*], [*Reference*]),
-    [Treewidth-based], [$O(2^(t w) dot n)$], [Standard DP],
-    [Clique-width-based], [$O(2^(c w) dot n^2)$], [@courcelle2000],
-    [Rank-width-based], [$O(2^(3 r w) dot n^2 dot m)$], [@ganian2010],
-  ),
-  caption: [Parameterized algorithms for \#SAT.],
-) <tab:complexity>
+// Over $bb(F)_2$: rows 2 and 3 of $M^+$ are identical, so $op("rank")(M^+) = 2$. Similarly, $op("rank")(M^-) = 2$. Thus $t = max(t^+, t^-) = 2$.
 
-= Conclusion
+// #remark[
+//   The *unsigned* incidence graph $K_(3,3)$ has rank-width 1 (the all-ones cut matrix has rank 1). However, the *signed* rank-width is 2 because $M^+$ and $M^-$ encode different edge patterns. The algorithm's complexity depends on $t = 2$, not the unsigned rank-width.
+// ]
 
-Rank-width provides an alternative parameterization for \#SAT. By measuring the $bb(F)_2$-rank of cut matrices rather than separator size, it can yield exponential improvements for graph families with low-rank algebraic structure.
+// === Step 3: Subspace Structure
+
+// With $t = 2$, the state components are subspaces of $bb(F)_2^2$. The lattice of subspaces is:
+
+// #figure(
+//   table(
+//     columns: 3,
+//     stroke: 0.5pt,
+//     table.header([*Dimension*], [*Subspaces*], [*Count*]),
+//     [0], [${bold(0)}$], [1],
+//     [1], [$chevron.l (1,0) chevron.r, chevron.l (0,1) chevron.r, chevron.l (1,1) chevron.r$], [3],
+//     [2], [$bb(F)_2^2$], [1],
+//   ),
+//   caption: [The 5 subspaces of $bb(F)_2^2$.],
+// )
+
+// === Step 4: Labeling
+
+// The labeling assigns vectors in $bb(F)_2^2$ to each vertex. From the cut matrices:
+// - $lambda^+(x_1) = (1, 0, 1)^top$, $lambda^-(x_1) = (0, 1, 0)^top$ (column vectors of $M^+, M^-$)
+// - $lambda^+(x_2) = lambda^+(x_3) = (1, 1, 0)^top$, $lambda^-(x_2) = lambda^-(x_3) = (0, 0, 1)^top$
+
+// For clauses, the labels come from a basis for the row space. With $t = 2$, we can use:
+// - $lambda(C_1) = (1, 0)$, $lambda(C_2) = (0, 1)$ (basis vectors)
+// - $lambda(C_3)$ depends on the specific decomposition
+
+// === Step 5: Process Variable Leaves
+
+// At each variable leaf, state $(Sigma^+, Sigma^-, Pi^+, Pi^-)$ tracks which subspaces are generated.
+
+// *Leaf $x_1$*:
+// - $x_1 = 1$: generates $Sigma^+ = chevron.l lambda^+(x_1) chevron.r$, $Sigma^- = {bold(0)}$
+// - $x_1 = 0$: generates $Sigma^+ = {bold(0)}$, $Sigma^- = chevron.l lambda^-(x_1) chevron.r$
+
+// *Leaves $x_2, x_3$* (identical labels):
+// - $x_i = 1$: generates $Sigma^+ = chevron.l lambda^+(x_i) chevron.r$, $Sigma^- = {bold(0)}$
+// - $x_i = 0$: generates $Sigma^+ = {bold(0)}$, $Sigma^- = chevron.l lambda^-(x_i) chevron.r$
+
+// === Step 6: Process Clause Leaves
+
+// Each clause $C_j$ requires that its label not be orthogonal to the expectation subspace corresponding to its literals' polarity.
+
+// *Leaf $C_1$* (all positive literals): Requires $lambda(C_1) in.not (Pi^+)^perp$, i.e., $Pi^+$ must contain a vector not orthogonal to $lambda(C_1)$.
+
+// *Leaf $C_2$* (mixed): Has positive literals $x_2, x_3$ and negative literal $x_1$. Satisfaction can come from either $Pi^+$ or $Pi^-$.
+
+// *Leaf $C_3$* (mixed): Has positive literal $x_1$ and negative literals $x_2, x_3$.
+
+// === Step 7: Join and Final Count
+
+// The join operation combines subspaces via sum. At the root, we require $Pi^+ = Pi^- = {bold(0)}$ (all expectations satisfied).
+
+// #figure(
+//   table(
+//     columns: 4,
+//     stroke: 0.5pt,
+//     table.header([*Assignment $(x_1, x_2, x_3)$*], [*$Sigma^+$*], [*$Sigma^-$*], [*Satisfies?*]),
+//     [$(0, 0, 0)$], [${bold(0)}$], [$bb(F)_2^2$], [No: $C_1$ unsatisfied],
+//     [$(1, 0, 0)$], [1-dim], [1-dim], [No: $C_2$ unsatisfied],
+//     [$(0, 1, 0)$], [1-dim], [1-dim], [Yes],
+//     [$(0, 0, 1)$], [1-dim], [1-dim], [Yes],
+//     [$(1, 1, 0)$], [$bb(F)_2^2$], [1-dim], [Yes],
+//     [$(1, 0, 1)$], [$bb(F)_2^2$], [1-dim], [Yes],
+//     [$(0, 1, 1)$], [1-dim], [$bb(F)_2^2$], [No: $C_3$ unsatisfied],
+//     [$(1, 1, 1)$], [$bb(F)_2^2$], [${bold(0)}$], [Yes],
+//   ),
+//   caption: [Final satisfiability via subspace coverage. "1-dim" denotes a 1-dimensional subspace.],
+// )
+
+// The expectation matching verifies:
+// - $C_1$ (all positive): needs $Sigma^+$ to cover $lambda(C_1)$
+// - $C_2$ (positive $x_2, x_3$; negative $x_1$): needs $Sigma^+$ or $Sigma^-$ to cover $lambda(C_2)$
+// - $C_3$ (positive $x_1$; negative $x_2, x_3$): needs $Sigma^+$ or $Sigma^-$ to cover $lambda(C_3)$
+
+// $ \#op("SAT")(phi) = 5 $
+
+// #remark[
+//   With signed rank-width $t = 2$, the DP tracks states over 5 subspaces per component, yielding $O(5^4) = 625$ possible states per node. This is larger than the $2^3 = 8$ assignments but demonstrates the general structure. For formulas where $t << n$, the compression becomes significant.
+// ]
+
+// == Complexity Analysis
+
+// #figure(
+//   table(
+//     columns: 3,
+//     stroke: 0.5pt,
+//     table.header([*Component*], [*Size*], [*For rank-width $t$*]),
+//     [Subspaces of $bb(F)_2^t$], [$S(t) <= 2^(t(t+1)\/4)$], [Lemma 3.3 @ganian2010],
+//     [Table size per node], [$O(S(t)^4)$], [4 subspaces per state],
+//     [Join operation], [$O(t^3 dot S(t)^6)$], [Loop over 6 subspaces],
+//   ),
+//   caption: [DP complexity depends on the signed rank-width $t$.],
+// ) <tab:dp-complexity>
+
+// The actual complexity from @ganian2010 is:
+// $ O(t^3 dot 2^(3t(t+1)\/2) dot |phi|) $
+// where $t = max(t^+, t^-)$ is the signed rank-width. Although there are $O(S(t)^4)$ possible states, the join operation can be computed efficiently by iterating over 6 subspaces (the remaining 6 are determined by linear algebra), with each iteration requiring $O(t^3)$ time.
+
+
+// = Computing Rank-Width
+
+// Computing rank-width exactly is NP-hard @oum2006. Several algorithmic approaches exist:
+
+// #v(10pt)
+// #figure(
+//   table(
+//     columns: 3,
+//     stroke: 0.5pt,
+//     table.header([*Approach*], [*Complexity*], [*Notes*]),
+//     [Exact], [$O(3^n)$], [Brute force],
+//     [FPT], [$O(f(k) dot n^3)$], [Fixed-parameter tractable],
+//     [Approximation], [Polynomial], [$(3k+1)$-approximation @oum2006],
+//   ),
+//   caption: [Algorithms for computing rank-width.],
+// )
+
+// The cut-rank function $rho(A) = op("rank")_(bb(F)_2)(M_A)$ satisfies two key properties:
+// - *Symmetric*: $rho(A) = rho(B)$
+// - *Submodular*: $rho(A) + rho(B) >= rho(A inter B) + rho(A union B)$
+
+// #figure(
+//   rect(
+//     width: 100%,
+//     inset: 12pt,
+//     fill: rgb("#f0fff0"),
+//     stroke: rgb("#4a4"),
+//     [
+//       *Why submodularity helps*: Submodular functions have "diminishing returns" --- adding an element to a larger set increases the function value by at most as much as adding it to a smaller set. This property enables:
+
+//       1. *Greedy algorithms*: Local choices lead to globally good solutions
+//       2. *Branch decomposition*: The $(3k+1)$-approximation @oum2006 uses submodularity to efficiently explore the space of decompositions
+//       3. *Polynomial-time verification*: Given a decomposition, we can verify its width in polynomial time
+
+//       Without submodularity, finding optimal decompositions would require exhaustive search over all possible tree structures.
+//     ]
+//   ),
+// )
+
+// = Complexity Comparison
+
+// #figure(
+//   table(
+//     columns: 3,
+//     stroke: 0.5pt,
+//     table.header([*Algorithm*], [*Time Complexity*], [*Reference*]),
+//     [Treewidth-based], [$O(2^(t w) dot n)$], [Standard DP],
+//     [Clique-width-based], [$O(2^(c w) dot n^2)$], [@courcelle2000],
+//     [Rank-width-based], [$O(2^(3 r w) dot n^2 dot m)$], [@ganian2010],
+//   ),
+//   caption: [Parameterized algorithms for \#SAT.],
+// ) <tab:complexity>
+
 
 #bibliography("refs.bib", title: "References", style: "ieee")
