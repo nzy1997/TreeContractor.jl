@@ -79,11 +79,10 @@ $ op("rw")(G) = min_((T,L)) max_(e in T) op("rank")_(bb(F)_2)(M_(A_e)) $
 
 = Neighborhood Equivalence
 
-Let $G = (V, E)$ be a graph. For any partition $(A, B)$ of $V$ and any $Y subset.eq A$, define the *neighborhood* of $Y$ with respect to $B$:
-$ N_B (Y) = {v in B : exists y in Y, {y, v} in E} $
-the set of vertices in $B$ adjacent to at least one vertex in $Y$.
+Let $G = (V, E)$ be a graph. Given a partition $(A, B)$ of $V$ and a subset $Y subset.eq A$, the *neighborhood* of $Y$ relative to $B$ is defined as:
+$ N_B (Y) = {v in B : exists y in Y, {y, v} in E}. $
 
-Two subsets $Y, Y' subset.eq A$ are *neighborhood-equivalent* w.r.t. the partition $(A, B)$ if $N_B (Y) = N_B (Y')$.
+Two subsets $Y, Y' subset.eq A$ are said to be *neighborhood-equivalent* with respect to the partition $(A, B)$ if and only if $N_B (Y) = N_B (Y')$.
 
 #figure(
   canvas(length: 1cm, {
