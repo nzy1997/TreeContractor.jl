@@ -193,33 +193,27 @@ Over $bb(F)_2$, this matrix has *rank 1* (all rows identical). The equivalence c
 
 === The Neighborhood Characteristic
 
-The set-theoretic neighborhood equivalence ($N_B (S) = N_B (S')$) is conceptually clean but computationally inconvenient. For the DP algorithm, we can use a related but *coarser* equivalence based on $bb(F)_2$ arithmetic.
+Recall that our goal is to count satisfying assignments by dynamic programming on the rank decomposition. At each node, the algorithm processes a subset $A subset.eq V$ of vertices (variables and clauses) and must track how partial assignments to $A$ interact with the unprocessed boundary $B = V - A$.
+
+A naive approach would enumerate all $2^(|A|)$ possible subsets of TRUE variables, leading to exponential state space. However, observe that the subsequent computation depends only on *how* the partial assignment connects to $B$, not on *which* specific variables are selected. Two partial assignments that induce identical adjacency patterns with $B$ will combine identically with any completion on $B$. This observation motivates the following definition.
 
 #definition("Neighborhood Characteristic")[
-  Given a set $S subset.eq X$ with characteristic vector $bold(v) in bb(F)_2^n$ (where $v_i = 1$ iff $x_i in S$), the *neighborhood characteristic* is:
+  Given a subset $S subset.eq A$ with characteristic vector $bold(v) in bb(F)_2^n$ (where $v_i = 1$ iff $x_i in S$), the *neighborhood characteristic* of $S$ is:
   $ bold(n)_S = bold(v)^top M in bb(F)_2^m $
-  where $M$ is the cut matrix.
+  where $M$ is the cut matrix of the partition $(A, B)$.
 ]
 
-The $j$-th entry is:
-      $ (bold(n)_S)_j = plus.big_(i : x_i in S) M[i,j] $
-      This counts (in $bb(F)_2$, i.e., mod 2) how many vertices in $S$ are adjacent to the $j$-th boundary vertex.
+The $j$-th entry $(bold(n)_S)_j = plus.big_(i : x_i in S) M[i,j]$ counts (mod 2) the number of vertices in $S$ adjacent to the $j$-th boundary vertex.
 
-#v(10pt)
-*For \#SAT*: When $S$ is the set of TRUE variables and $B$ is the set of clauses, $(bold(n)_S)_j$ counts (mod 2) how many variables in $S$ appear in clause $C_j$. Note that this captures *incidence* (which variables appear in which clauses), not *satisfaction* (whether the clause is satisfied). The incidence graph does not encode literal polarity --- whether a variable appears positively ($x_i$) or negatively ($not x_i$). Polarity information is tracked separately in the DP state; the neighborhood characteristic determines how partial assignments *interact across the cut*, while satisfaction depends on the specific literals.
-
-The $bb(F)_2$ equivalence groups more assignments together than set-theoretic neighborhood equivalence. Two sets are $bb(F)_2$-equivalent iff they have the same neighborhood characteristic:
-$ S tilde.eq_(bb(F)_2) S' <==> bold(n)_S = bold(n)_(S') <==> bold(v)^top M = bold(v')^top M $
-
-This holds iff $bold(v) - bold(v)' in ker(M)$, so the number of $bb(F)_2$ equivalence classes is exactly $2^(op("rank")(M))$ @bui-xuan2011. This enables DP compression: instead of tracking $2^(|A|)$ subsets, we track at most $2^(op("rw")(G))$ equivalence classes at each node.
-
-This coarser equivalence is sufficient for the DP algorithm because it is *closed under the join operation*. The DP combines partial solutions using XOR (addition in $bb(F)_2$). When we join two partial assignments $S_1$ and $S_2$ from different subtrees, their combined neighborhood is:
+The choice of the binary field $bb(F)_2$ is essential for compositionality. When joining partial assignments $S_1$ and $S_2$ from disjoint subtrees, their combined characteristic satisfies:
 $ bold(n)_(S_1 union S_2) = bold(n)_(S_1) xor bold(n)_(S_2) $
+This closure property ensures that $bb(F)_2$-equivalent partial assignments remain equivalent after composition: if $bold(n)_(S_1) = bold(n)_(S'_1)$, then $bold(n)_(S_1 union S_2) = bold(n)_(S'_1 union S_2)$ for any $S_2$.
 
-If $S_1 tilde.eq_(bb(F)_2) S'_1$ (same neighborhood characteristic), then for any $S_2$:
-$ bold(n)_(S_1 union S_2) = bold(n)_(S_1) xor bold(n)_(S_2) = bold(n)_(S'_1) xor bold(n)_(S_2) = bold(n)_(S'_1 union S_2) $
+Two subsets are $bb(F)_2$-equivalent if and only if they have identical neighborhood characteristics:
+$ S tilde.eq_(bb(F)_2) S' <==> bold(n)_S = bold(n)_(S') <==> bold(v) - bold(v)' in ker(M) $
+The number of equivalence classes equals $2^(op("rank")(M))$ @bui-xuan2011. Consequently, the DP algorithm tracks at most $2^(op("rw")(G))$ equivalence classes per node, rather than $2^(|A|)$ individual subsets.
 
-Thus, equivalent partial assignments remain equivalent after joining, and may be grouped together throughout the DP computation.
+*Application to \#SAT.* When $S$ represents the set of TRUE variables and $B$ the set of clauses, $(bold(n)_S)_j$ counts (mod 2) how many TRUE variables appear in clause $C_j$. This encodes *incidence* (which variables appear in which clauses) rather than *satisfaction* (whether clauses evaluate to true). Literal polarity---whether a variable appears as $x_i$ or $not x_i$---is tracked separately in the DP state; the neighborhood characteristic captures interaction patterns across the cut, while satisfaction verification requires additional bookkeeping described in subsequent sections.
 
 === Computing the Neighborhood Characteristic
 
@@ -318,15 +312,21 @@ The Ganian et al. algorithm @ganian2010 processes the rank decomposition tree bo
 
 The actual algorithm @ganian2010 uses *signed graphs* to distinguish positive and negative literal occurrences. The signed graph $F_phi$ has two edge sets: $E^+$ (variable appears positively in clause) and $E^-$ (variable appears negatively). Crucially, *both signed components share the same decomposition tree* --- they differ only in their labeling functions at each node.
 
+Before describing the full state structure, we must introduce *orthogonality*, which encodes partial clause satisfaction. Given vectors $bold(u), bold(v) in bb(F)_2^t$, they are *orthogonal* (written $bold(u) perp bold(v)$) if $bold(u)^top bold(v) = 0$ in $bb(F)_2$. In the DP algorithm, a clause's label vector represents which literal types (positive/negative) can satisfy it. A subspace $Pi^+$ (expected positive contributions) is sufficient to satisfy that clause iff the clause label is *not orthogonal* to $Pi^+$. If a clause label is orthogonal to both $Pi^+$ and $Pi^-$ (expected positive and negative contributions), then no satisfying literal can exist for that clause in this partial assignment, making the state invalid.
+
 At each node $z$ of this shared parse tree:
 
-- *State*: A 4-tuple of subspaces $(Sigma^+, Sigma^-, Pi^+, Pi^-)$ over $bb(F)_2^t$ where $t = max(t^+, t^-)$ is the signed rank-width.
-  - $Sigma^+$: subspace generated by labels of TRUE variables (positive literal contribution)
-  - $Sigma^-$: subspace generated by labels of FALSE variables (negative literal contribution)
-  - $Pi^+, Pi^-$: *expectation* subspaces --- encode which clause labels must be "covered" by the rest of the formula
-- *Table*: $T_z [Sigma^+, Sigma^-, Pi^+, Pi^-]$ = number of partial assignments of *shape* $(Sigma^+, Sigma^-, Pi^+, Pi^-)$
+- *Labeling*: Each variable or clause vertex $v$ has two label vectors $lambda^+(v), lambda^-(v) in bb(F)_2^t$. Variable labels come from the columns of the signed cut matrices (M^+ and M^-). Clause labels are chosen as a basis for the row space of these matrices, encoding which variable combinations can satisfy each clause.
 
-An assignment $nu$ has shape $(Sigma^+, Sigma^-, Pi^+, Pi^-)$ if: (1) $Sigma^+, Sigma^-$ are generated by the appropriate labels, and (2) every clause in the current subtree is either already satisfied OR its label is not orthogonal to $Pi^+$ or $Pi^-$ (i.e., it is "expected" to be satisfied later).
+- *State*: A 4-tuple of subspaces $(Sigma^+, Sigma^-, Pi^+, Pi^-)$ over $bb(F)_2^t$ where $t = max(t^+, t^-)$ is the signed rank-width.
+  - $Sigma^+$: subspace generated by $lambda^+(v)$ for all variables $v$ assigned TRUE
+  - $Sigma^-$: subspace generated by $lambda^-(v)$ for all variables $v$ assigned FALSE
+  - $Pi^+, Pi^-$: *unsatisfied clause coverage requirements* --- which clause label patterns still need to be covered by the remaining variables to satisfy clauses
+- *Table*: $T_z [Sigma^+, Sigma^-, Pi^+, Pi^-]$ = count of partial assignments of *shape* $(Sigma^+, Sigma^-, Pi^+, Pi^-)$
+
+*Shape Definition*: An assignment $nu$ has shape $(Sigma^+, Sigma^-, Pi^+, Pi^-)$ iff:
++ $Sigma^+$ and $Sigma^-$ are the exact subspaces spanned by the labels of TRUE and FALSE variables respectively
++ Every clause $c$ in the processed subtree satisfies: either $lambda(c) not perp Sigma^+$ (satisfied by positive literals), or $lambda(c) not perp Sigma^-$ (satisfied by negative literals), or $lambda(c) not perp Pi^+$ or $lambda(c) not perp Pi^-$ (expected to be satisfied by remaining variables)
 
 === The Expectation Mechanism
 
@@ -590,5 +590,15 @@ The condition $Pi^+ = Pi^- = emptyset$ ensures that every clause has been satisf
 //   caption: [Parameterized algorithms for \#SAT.],
 // ) <tab:complexity>
 
+
+= Background Notes
+
+The algorithmic exploitation of neighborhood equivalence over finite fields emerged from two parallel developments in parameterized complexity.
+
+*The $d$-neighbor equivalence framework.* Bui-Xuan, Telle, and Vatshelle @bui-xuan2013 introduced the $d$-neighbor equivalence relation for dynamic programming on graph decompositions. Their key insight was that for locally checkable problems (where feasibility depends only on local neighborhoods), it suffices to track equivalence classes rather than individual vertex subsets. This yields polynomial-time algorithms for graphs of bounded boolean-width @bui-xuan2011, with runtime $O(n^4 2^(O(k^2)))$ for decompositions of boolean-width $k$.
+
+*The rank-based approach.* Independently, Bodlaender, Cygan, Kratsch, and Nederlof @bodlaender2015 developed the rank-based approach for connectivity problems parameterized by treewidth. Their central observation was that *representative sets*---small subsets that preserve all relevant information for dynamic programming---can be computed efficiently via Gaussian elimination over finite fields. This technique achieves single-exponential runtime $2^(O(k)) n^(O(1))$ for problems like Steiner Tree and Hamiltonian Path, where previous algorithms required $k^(O(k)) n^(O(1))$ time.
+
+*Synthesis for rank-width.* The Ganian--Hliněný--Obdržálek algorithm @ganian2010 synthesizes these ideas for \#SAT parameterized by rank-width. The cut-rank function $rho_G (X) = op("rank")_(bb(F)_2)(M_X)$ directly measures the number of equivalence classes, and the use of $bb(F)_2$ enables XOR convolution for efficient joins. The signed graph formulation extends this to track literal polarity, with the expectation mechanism (originating from @bui-xuan2011 for dominating set) enabling single-exponential dependence on the signed rank-width.
 
 #bibliography("refs.bib", title: "References", style: "ieee")
