@@ -195,3 +195,5 @@ Decision diagrams provide a complementary approach to traditional SAT solving, p
 
 The choice between decision diagram approaches and traditional SAT solvers depends on the problem structure, query patterns, and performance requirements. Hybrid approaches that combine both paradigms are an active area of research.
 
+
+
